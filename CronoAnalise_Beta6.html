@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CronoAnálise</title>
+<style>
+:root{
+  --paper:#f2efe7;
+  --panel:#ffffff;
+  --graphite:#1c2128;
+  --graphite-2:#262c36;
+  --ink:#1c2128;
+  --ink-soft:#5c6270;
+  --line:#ddd6c7;
+  --accent:#c97a2b;
+  --accent-dark:#a3611f;
+  --va:#2f7d4a;
+  --nva:#b03a2e;
+  --espera:#b8901f;
+  --transporte:#34618a;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(28,33,40,.06),0 4px 10px rgba(28,33,40,.06);
+  --mono:'SFMono-Regular','Consolas','Roboto Mono','Menlo',monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin:0 0 12px;font-weight:700}
+p.hint{font-size:12px;color:var(--ink-soft);margin:0 0 12px}
+button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 14px;font-size:14px;transition:transform .08s ease,background .15s ease}
+button:hover{background:#f7f5ef}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,select{font-family:inherit;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-size:14px;color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.topbar{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:10}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand b{font-size:18px;letter-spacing:.01em}
+.brand .version{font-size:11px;color:#9aa1ad;border:1px solid #3a4150;border-radius:6px;padding:2px 6px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions button{background:#2a3140;border-color:#3a4150;color:#fff}
+.actions button:hover{background:#343c4d}
+.actions button.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128}
+
+.canvas{max-width:920px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+
+.panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.empty{color:var(--ink-soft);font-size:13px;margin:0}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px}
+.form-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
+.study-picker{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.study-picker select{flex:1}
+
+.module{background:var(--graphite);color:#fff;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.module-head{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9aa1ad;margin-bottom:6px;text-align:center}
+.timer-display{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:54px;font-weight:600;text-align:center;letter-spacing:.02em;line-height:1.1}
+.live-row{text-align:center;color:#b9bfca;font-size:13px;margin-top:4px}
+.live-row span{font-family:var(--mono);color:#fff}
+.cycle-row{text-align:center;margin:10px 0;font-size:14px;color:#cfd3da}
+.cycle-row b{color:#fff;font-size:18px;font-family:var(--mono)}
+.timer-controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.timer-controls button{background:#2a3140;border-color:#3a4150;color:#fff}
+.timer-controls button:hover{background:#343c4d}
+.timer-controls .cta{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700}
+.timer-controls .cta:hover{background:#d98a3d}
+
+.qty-row{display:flex;justify-content:center;align-items:center;gap:8px}
+.qty-row input{width:84px;text-align:center;font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
+
+.stage-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.stage-form input{flex:1;min-width:160px}
+.stage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stage-wrap{position:relative}
+.stage{width:100%;height:84px;border-radius:12px;border:1px solid var(--line);border-left:6px solid var(--ink-soft);background:#fff;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:0 14px;text-align:left}
+.stage .stage-name{font-size:15px;font-weight:600}
+.stage .stage-type{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.stage.type-va{border-left-color:var(--va)}
+.stage.type-nva{border-left-color:var(--nva)}
+.stage.type-espera{border-left-color:var(--espera)}
+.stage.type-transporte{border-left-color:var(--transporte)}
+.stage.flash{background:#f3efe3}
+.stage-remove{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;padding:0;background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
+.stage-remove:hover{background:var(--nva);color:#fff;border-color:var(--nva)}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--paper);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.kpi-label{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+.kpi-val{font-family:var(--mono);font-size:20px;font-weight:700}
+
+.typebar-wrap{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.typebar-row{display:grid;grid-template-columns:90px 1fr 130px;align-items:center;gap:10px;font-size:13px}
+.typebar-label{font-weight:600}
+.typebar-track{background:var(--paper);border-radius:6px;height:10px;overflow:hidden}
+.typebar-fill{height:100%;border-radius:6px}
+.typebar-val{font-family:var(--mono);text-align:right;color:var(--ink-soft);font-size:12px}
+
+.summary-table{width:100%;border-collapse:collapse;font-size:13px}
+.summary-table th,.summary-table td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+.summary-table th{color:var(--ink-soft);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.badge{display:inline-block;color:#fff;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+
+.table-wrap{overflow-x:auto}
+table.records{width:100%;border-collapse:collapse;font-size:13px}
+table.records th,table.records td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+table.records th{color:var(--ink-soft);font-weight:600;font-size:11px;text-transform:uppercase}
+table.records td[contenteditable]{cursor:text}
+table.records td[contenteditable]:hover{background:#faf8f2}
+table.records select{padding:4px 6px;font-size:12px}
+.danger{background:#fff;border-color:var(--nva);color:var(--nva);padding:4px 9px;font-size:12px}
+.danger:hover{background:var(--nva);color:#fff}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,16px);background:var(--graphite);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:50}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+body.field [data-field-hide]{display:none}
+body.field .canvas{max-width:600px}
+body.field .timer-display{font-size:64px}
+body.field .stage{height:104px}
+body.field .stage .stage-name{font-size:17px}
+body.field .module{padding:26px}
+
+@media(max-width:480px){
+ .timer-display{font-size:42px}
+ body.field .timer-display{font-size:50px}
+ .typebar-row{grid-template-columns:70px 1fr 100px;font-size:12px}
+}
+
+@media(prefers-reduced-motion:reduce){
+ *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<header class="topbar">
+  <div class="brand"><b>CronoAnálise</b><span class="version">Beta 6</span></div>
+  <div class="actions">
+    <button id="btnField" onclick="toggleField()">Modo Campo</button>
+    <button onclick="manualSave()">Salvar</button>
+    <button onclick="newStudy()">Novo Estudo</button>
+    <button onclick="exportCSV()">Exportar CSV</button>
+  </div>
+</header>
+
+<main class="canvas">
+
+  <section class="panel" data-field-hide>
+    <h2>Estudo</h2>
+    <div class="form-grid">
+      <label>Nome do estudo<input id="studyName" placeholder="Ex.: Separação Linha A" onblur="saveStudy()"></label>
+      <label>Processo<input id="process" placeholder="Processo" onblur="saveStudy()"></label>
+      <label>Usuário LMS<input id="operator" placeholder="Operador" onblur="saveStudy()"></label>
+      <label>Champiom OMS<input id="observer" placeholder="Cronoanalista" onblur="saveStudy()"></label>
+    </div>
+    <div class="study-picker">
+      <select id="studyList" onchange="loadSelectedStudy()"></select>
+      <button class="danger" onclick="deleteStudy()">Excluir</button>
+    </div>
+  </section>
+
+  <section class="module">
+    <div class="module-head">Cronômetro contínuo</div>
+    <div id="timer" class="timer-display">00:00:00.0</div>
+    <div class="live-row">Elemento atual: <span id="liveElement">0,0s</span></div>
+    <div class="cycle-row">Ciclo <b id="cycle">1</b></div>
+    <div class="timer-controls">
+      <button id="btnStart" onclick="startTimer()">▶ Iniciar</button>
+      <button id="btnPause" onclick="pauseTimer()" disabled>⏸ Pausar</button>
+      <button onclick="resetTimer()">↺ Zerar</button>
+      <button class="cta" onclick="newCycle()">Novo Ciclo →</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Quantidade do Ciclo</h2>
+    <div class="qty-row">
+      <button onclick="changeQty(-10)">-10</button>
+      <button onclick="changeQty(-1)">-1</button>
+      <input id="qty" value="1" oninput="onQtyInput()">
+      <button onclick="changeQty(1)">+1</button>
+      <button onclick="changeQty(10)">+10</button>
+    </div>
+    <p class="hint" style="text-align:center;margin-top:10px">Quantidade produzida neste ciclo. Some é fechada e zerada ao iniciar um novo ciclo.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Etapas</h2>
+    <p class="hint">Toque numa etapa para marcar o tempo decorrido desde a última marcação.</p>
+    <div class="stage-form" data-field-hide>
+      <input id="stageName" placeholder="Nome da etapa">
+      <select id="stageType">
+        <option>VA</option>
+        <option>NVA</option>
+        <option>Espera</option>
+        <option>Transporte</option>
+      </select>
+      <button onclick="addStage()">Adicionar</button>
+    </div>
+    <div id="stages" class="stage-grid"></div>
+  </section>
+
+  <section class="panel" data-field-hide>
+    <h2>Indicadores</h2>
+    <div id="stats"></div>
+  </section>
+
+  <section class="panel" data-field-hide>
+    <h2>Registros</h2>
+    <div class="table-wrap">
+      <table class="records">
+        <thead>
+          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd do Ciclo</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="recordsTable"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const STORAGE_KEY = 'cronoanalise_studies_v2';
+const OLD_STORAGE_KEY = 'studies';
+const TYPE_COLORS = {VA:'#2f7d4a',NVA:'#b03a2e',Espera:'#b8901f',Transporte:'#34618a'};
+
+let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1 };
+let elapsed=0, start=0, intv=null, lastMark=0;
+let wakeLock=null;
+let idCounter=0;
+
+function genId(prefix){ idCounter++; return prefix+'_'+idCounter+'_'+Date.now().toString(36); }
+
+function parseNumber(v){
+  if(v===undefined||v===null||v==='') return 0;
+  const n = parseFloat(String(v).trim().replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function toBR(n, dec=2){
+  if(!isFinite(n)) n=0;
+  return n.toFixed(dec).replace('.', ',');
+}
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ---------- Timer ---------- */
+function fmt(ms){
+  const deci = Math.floor(ms/100)%10;
+  const totalSec = Math.floor(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+deci;
+}
+function startTimer(){
+  if(intv) return;
+  start = Date.now()-elapsed;
+  intv = setInterval(()=>{
+    elapsed = Date.now()-start;
+    document.getElementById('timer').textContent = fmt(elapsed);
+    const live = Math.max(0, elapsed/1000-lastMark);
+    document.getElementById('liveElement').textContent = toBR(live,1)+'s';
+  },100);
+  requestWakeLock();
+  updateStartPauseUI(true);
+}
+function pauseTimer(){
+  clearInterval(intv); intv=null;
+  releaseWakeLock();
+  updateStartPauseUI(false);
+}
+function resetTimer(){
+  pauseTimer();
+  elapsed=0; lastMark=0;
+  document.getElementById('timer').textContent = fmt(0);
+  document.getElementById('liveElement').textContent = '0,0s';
+}
+function updateStartPauseUI(running){
+  document.getElementById('btnStart').disabled = running;
+  document.getElementById('btnPause').disabled = !running;
+}
+
+/* ---------- Wake Lock (mantém a tela acesa durante a coleta) ---------- */
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); }
+  }catch(e){ /* não crítico se não houver suporte */ }
+}
+function releaseWakeLock(){
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock=null; }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && intv) requestWakeLock();
+});
+
+/* ---------- Quantidade por ciclo ---------- */
+function changeQty(v){
+  const e = document.getElementById('qty');
+  e.value = Math.max(0, parseNumber(e.value)+v);
+  onQtyInput();
+}
+function onQtyInput(){
+  state.cycleQty[state.currentCycle] = parseNumber(document.getElementById('qty').value);
+  saveStudy();
+  renderStats();
+}
+function newCycle(){
+  state.cycleQty[state.currentCycle] = parseNumber(document.getElementById('qty').value);
+  state.currentCycle++;
+  document.getElementById('cycle').textContent = state.currentCycle;
+  lastMark = elapsed/1000;
+  state.cycleQty[state.currentCycle] = 1;
+  document.getElementById('qty').value = 1;
+  saveStudy();
+  renderStats();
+}
+
+/* ---------- Etapas ---------- */
+function addStage(){
+  const nameEl = document.getElementById('stageName');
+  const n = nameEl.value.trim();
+  if(!n) return;
+  state.stages.push({ id:genId('st'), name:n, type:document.getElementById('stageType').value });
+  nameEl.value='';
+  renderStages();
+  saveStudy();
+}
+function removeStage(id){
+  if(!confirm('Remover esta etapa da lista de captura? Os registros já marcados com ela são mantidos.')) return;
+  state.stages = state.stages.filter(s=>s.id!==id);
+  renderStages();
+  saveStudy();
+}
+function renderStages(){
+  const wrap = document.getElementById('stages');
+  wrap.innerHTML = '';
+  if(state.stages.length===0){
+    wrap.innerHTML = '<p class="empty">Nenhuma etapa cadastrada ainda. Adicione as etapas do processo acima.</p>';
+    return;
+  }
+  state.stages.forEach(s=>{
+    const wrapDiv = document.createElement('div');
+    wrapDiv.className = 'stage-wrap';
+    wrapDiv.dataset.id = s.id;
+
+    const btn = document.createElement('button');
+    btn.className = 'stage type-'+s.type.toLowerCase();
+    btn.innerHTML = '<span class="stage-name">'+escapeHtml(s.name)+'</span><span class="stage-type">'+s.type+'</span>';
+    btn.onclick = ()=>markStage(s.id);
+
+    const rm = document.createElement('button');
+    rm.className = 'stage-remove';
+    rm.title = 'Remover etapa';
+    rm.textContent = '✕';
+    rm.onclick = (e)=>{ e.stopPropagation(); removeStage(s.id); };
+
+    wrapDiv.appendChild(btn);
+    wrapDiv.appendChild(rm);
+    wrap.appendChild(wrapDiv);
+  });
+}
+function flashStage(id){
+  const el = document.querySelector('.stage-wrap[data-id="'+id+'"] .stage');
+  if(!el) return;
+  el.classList.add('flash');
+  setTimeout(()=>el.classList.remove('flash'), 350);
+}
+function markStage(id){
+  const stage = state.stages.find(s=>s.id===id);
+  if(!stage) return;
+  const now = elapsed/1000;
+  const t = +(now-lastMark).toFixed(2);
+  lastMark = now;
+  state.records.push({
+    id: genId('r'),
+    cycle: state.currentCycle,
+    stageId: stage.id,
+    stageName: stage.name,
+    type: stage.type,
+    time: t
+  });
+  flashStage(id);
+  renderRecords();
+  saveStudy();
+}
+
+/* ---------- Registros ---------- */
+function editRecord(id, field, value){
+  const r = state.records.find(x=>x.id===id);
+  if(!r) return;
+  if(field==='time') r.time = parseNumber(value);
+  else if(field==='stageName') r.stageName = value.trim() || r.stageName;
+  else if(field==='type') r.type = value;
+  saveStudy();
+  renderRecords();
+}
+function deleteRecord(id){
+  state.records = state.records.filter(r=>r.id!==id);
+  renderRecords();
+  saveStudy();
+}
+function renderRecords(){
+  const tb = document.getElementById('recordsTable');
+  tb.innerHTML='';
+  state.records.forEach(r=>{
+    const tr = document.createElement('tr');
+    const typeOptions = ['VA','NVA','Espera','Transporte'].map(t=>
+      '<option'+(t===r.type?' selected':'')+'>'+t+'</option>'
+    ).join('');
+    tr.innerHTML =
+      '<td>'+r.cycle+'</td>'+
+      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'stageName\',this.innerText)">'+escapeHtml(r.stageName)+'</td>'+
+      '<td><select onchange="editRecord(\''+r.id+'\',\'type\',this.value)">'+typeOptions+'</select></td>'+
+      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'time\',this.innerText)">'+toBR(r.time)+'</td>'+
+      '<td>'+toBR(state.cycleQty[r.cycle]??0,0)+'</td>'+
+      '<td><button class="danger" onclick="deleteRecord(\''+r.id+'\')">Excluir</button></td>';
+    tb.appendChild(tr);
+  });
+  renderStats();
+}
+
+/* ---------- Indicadores ---------- */
+function computeTypeBreakdown(){
+  const byType={}; let total=0;
+  state.records.forEach(r=>{ byType[r.type]=(byType[r.type]||0)+r.time; total+=r.time; });
+  return {byType, total};
+}
+function computeStageSummary(){
+  const map = {};
+  state.records.forEach(r=>{
+    const key = r.stageName+'||'+r.type;
+    if(!map[key]) map[key] = {name:r.stageName, type:r.type, count:0, total:0, min:Infinity, max:-Infinity};
+    const m = map[key];
+    m.count++; m.total += r.time;
+    if(r.time<m.min) m.min=r.time;
+    if(r.time>m.max) m.max=r.time;
+  });
+  return Object.values(map).map(m=>({...m, avg: m.total/m.count}));
+}
+function renderStats(){
+  const total = state.records.reduce((a,r)=>a+r.time,0);
+  const qtyTotal = Object.values(state.cycleQty).reduce((a,q)=>a+(Number(q)||0),0);
+  const hours = total/3600;
+  const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
+  const {byType} = computeTypeBreakdown();
+  const vaPct = total>0 ? ((byType['VA']||0)/total*100) : 0;
+
+  const breakdownHtml = ['VA','NVA','Espera','Transporte'].map(t=>{
+    const v = byType[t]||0;
+    const pct = total>0 ? (v/total*100) : 0;
+    return '<div class="typebar-row">'+
+      '<span class="typebar-label">'+t+'</span>'+
+      '<div class="typebar-track"><div class="typebar-fill" style="width:'+pct+'%;background:'+TYPE_COLORS[t]+'"></div></div>'+
+      '<span class="typebar-val">'+toBR(v)+'s ('+toBR(pct,1)+'%)</span>'+
+    '</div>';
+  }).join('');
+
+  const summary = computeStageSummary();
+  const summaryRows = summary.map(s=>
+    '<tr><td>'+escapeHtml(s.name)+'</td>'+
+    '<td><span class="badge" style="background:'+TYPE_COLORS[s.type]+'">'+s.type+'</span></td>'+
+    '<td>'+s.count+'</td>'+
+    '<td>'+toBR(s.total)+'</td>'+
+    '<td>'+toBR(s.avg)+'</td>'+
+    '<td>'+toBR(s.min===Infinity?0:s.min)+'</td>'+
+    '<td>'+toBR(s.max===-Infinity?0:s.max)+'</td></tr>'
+  ).join('');
+
+  document.getElementById('stats').innerHTML =
+    '<div class="kpi-grid">'+
+      '<div class="kpi"><span class="kpi-label">Tempo Total</span><span class="kpi-val">'+toBR(total)+'s</span></div>'+
+      '<div class="kpi"><span class="kpi-label">Quantidade Total</span><span class="kpi-val">'+toBR(qtyTotal,0)+'</span></div>'+
+      '<div class="kpi"><span class="kpi-label">Produtividade</span><span class="kpi-val">'+toBR(prod)+'/h</span></div>'+
+      '<div class="kpi"><span class="kpi-label">% Valor Agregado</span><span class="kpi-val">'+toBR(vaPct,1)+'%</span></div>'+
+    '</div>'+
+    '<div class="typebar-wrap">'+breakdownHtml+'</div>'+
+    '<table class="summary-table"><thead><tr><th>Etapa</th><th>Tipo</th><th>Ocorr.</th><th>Total(s)</th><th>Média(s)</th><th>Mín(s)</th><th>Máx(s)</th></tr></thead>'+
+    '<tbody>'+(summaryRows || '<tr><td colspan="7" class="empty">Sem registros ainda</td></tr>')+'</tbody></table>';
+}
+
+/* ---------- Persistência ---------- */
+function migrateOldData(){
+  try{
+    if(localStorage.getItem(STORAGE_KEY)) return;
+    const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
+    if(!oldRaw) return;
+    const oldStudies = JSON.parse(oldRaw);
+    const migrated = {};
+    Object.keys(oldStudies).forEach(name=>{
+      const s = oldStudies[name] || {};
+      const oldStages = s.stages || [];
+      const stageWithIds = oldStages.map((st,i)=>({ id:'st_legacy_'+i, name:st.name, type:st.type }));
+      const cycleQty = {};
+      (s.records||[]).forEach(r=>{
+        const c = r.cycle, q = Number(r.qty)||0;
+        if(!(c in cycleQty) || q>cycleQty[c]) cycleQty[c]=q;
+      });
+      const records = (s.records||[]).map((r,i)=>{
+        const idx = oldStages.findIndex(st=>st.name===r.stage);
+        return {
+          id:'r_legacy_'+i,
+          cycle:r.cycle,
+          stageId: idx>=0 ? stageWithIds[idx].id : null,
+          stageName:r.stage,
+          type:r.type,
+          time:Number(r.time)||0
+        };
+      });
+      migrated[name+' (importado)'] = {
+        process:'', operator:'', observer:'',
+        stages: stageWithIds,
+        records,
+        cycleQty: Object.keys(cycleQty).length ? cycleQty : {1:1},
+        currentCycle: s.currentCycle || 1
+      };
+    });
+    if(Object.keys(migrated).length) localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+  }catch(e){
+    console.warn('Não foi possível importar estudos do Beta 5:', e);
+  }
+}
+function saveStudy(){
+  let studies = {};
+  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  const nameEl = document.getElementById('studyName');
+  let name = nameEl.value.trim();
+  if(!name){
+    name = 'Estudo_'+new Date().toLocaleString('pt-BR').replace(/[\/,: ]/g,'-');
+    nameEl.value = name;
+  }
+  studies[name] = {
+    process: document.getElementById('process').value,
+    operator: document.getElementById('operator').value,
+    observer: document.getElementById('observer').value,
+    stages: state.stages,
+    records: state.records,
+    cycleQty: state.cycleQty,
+    currentCycle: state.currentCycle
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+  loadStudyList();
+  document.getElementById('studyList').value = name;
+}
+function manualSave(){
+  saveStudy();
+  showToast('Estudo salvo ✓');
+}
+function loadStudyList(){
+  let studies = {};
+  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  const sel = document.getElementById('studyList');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Selecione um estudo salvo…</option>';
+  Object.keys(studies).sort().forEach(k=>{
+    const opt = document.createElement('option');
+    opt.value=k; opt.textContent=k;
+    sel.appendChild(opt);
+  });
+  if(current) sel.value = current;
+}
+function loadSelectedStudy(){
+  const name = document.getElementById('studyList').value;
+  if(!name) return;
+  let studies = {};
+  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  const s = studies[name];
+  if(!s) return;
+  state.stages = s.stages || [];
+  state.records = s.records || [];
+  state.cycleQty = s.cycleQty || {1:1};
+  state.currentCycle = s.currentCycle || 1;
+  document.getElementById('studyName').value = name;
+  document.getElementById('process').value = s.process || '';
+  document.getElementById('operator').value = s.operator || '';
+  document.getElementById('observer').value = s.observer || '';
+  document.getElementById('cycle').textContent = state.currentCycle;
+  document.getElementById('qty').value = (state.cycleQty[state.currentCycle] ?? 1);
+  resetTimer();
+  renderStages(); renderRecords(); renderStats();
+  showToast('Estudo "'+name+'" carregado');
+}
+function deleteStudy(){
+  const sel = document.getElementById('studyList');
+  const name = sel.value;
+  if(!name){ showToast('Selecione um estudo na lista para excluir'); return; }
+  if(!confirm('Excluir permanentemente o estudo "'+name+'"? Esta ação não pode ser desfeita.')) return;
+  let studies = {};
+  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  delete studies[name];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+  loadStudyList();
+  showToast('Estudo excluído');
+}
+function newStudy(){
+  if(state.records.length>0 || state.stages.length>0){
+    if(!confirm('Começar um novo estudo? As etapas e registros atuais não salvos serão perdidos (estudos já salvos continuam na lista).')) return;
+  }
+  state.stages=[]; state.records=[]; state.cycleQty={1:1}; state.currentCycle=1;
+  resetTimer();
+  document.getElementById('cycle').textContent='1';
+  document.getElementById('qty').value=1;
+  document.getElementById('studyName').value='';
+  document.getElementById('process').value='';
+  document.getElementById('operator').value='';
+  document.getElementById('observer').value='';
+  document.getElementById('studyList').value='';
+  renderStages(); renderRecords(); renderStats();
+  showToast('Novo estudo iniciado');
+}
+
+/* ---------- Modo Campo ---------- */
+function toggleField(){
+  document.body.classList.toggle('field');
+  const active = document.body.classList.contains('field');
+  const btn = document.getElementById('btnField');
+  btn.textContent = active ? 'Sair do Modo Campo' : 'Modo Campo';
+  btn.classList.toggle('active', active);
+}
+
+/* ---------- Exportação CSV (formato Excel BR: ; , BOM) ---------- */
+function exportCSV(){
+  const name = document.getElementById('studyName').value || 'Estudo';
+  const process = document.getElementById('process').value;
+  const operator = document.getElementById('operator').value;
+  const observer = document.getElementById('observer').value;
+  const now = new Date().toLocaleString('pt-BR');
+
+  const lines = [];
+  lines.push(['Estudo',name].join(';'));
+  lines.push(['Processo',process].join(';'));
+  lines.push(['Operador',operator].join(';'));
+  lines.push(['Cronoanalista',observer].join(';'));
+  lines.push(['Data da exportação',now].join(';'));
+  lines.push('');
+  lines.push(['Ciclo','Etapa','Tipo','Tempo(s)','Qtd do Ciclo'].join(';'));
+  state.records.forEach(r=>{
+    lines.push([r.cycle, r.stageName, r.type, toBR(r.time), toBR(state.cycleQty[r.cycle]??0,0)].join(';'));
+  });
+  lines.push('');
+  lines.push('Resumo por Etapa');
+  lines.push(['Etapa','Tipo','Ocorrências','Tempo Total(s)','Tempo Médio(s)','Tempo Mín(s)','Tempo Máx(s)'].join(';'));
+  computeStageSummary().forEach(s=>{
+    lines.push([s.name,s.type,s.count,toBR(s.total),toBR(s.avg),toBR(s.min===Infinity?0:s.min),toBR(s.max===-Infinity?0:s.max)].join(';'));
+  });
+  lines.push('');
+  const total = state.records.reduce((a,r)=>a+r.time,0);
+  const qtyTotal = Object.values(state.cycleQty).reduce((a,q)=>a+(Number(q)||0),0);
+  const hours = total/3600;
+  const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
+  lines.push(['Tempo Total(s)',toBR(total)].join(';'));
+  lines.push(['Quantidade Total',toBR(qtyTotal,0)].join(';'));
+  lines.push(['Produtividade (un/h)',toBR(prod)].join(';'));
+
+  const csv = lines.join('\r\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (name.replace(/[^a-z0-9_-]+/gi,'_')||'CronoAnalise')+'.csv';
+  a.click();
+  showToast('CSV exportado');
+}
+
+/* ---------- Inicialização ---------- */
+migrateOldData();
+loadStudyList();
+renderStages();
+renderRecords();
+</script>
+</body>
+</html>
