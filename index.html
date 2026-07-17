@@ -131,19 +131,48 @@ body.field .module{padding:26px}
 @media(prefers-reduced-motion:reduce){
  *{transition:none!important;animation:none!important}
 }
+
+.auth-overlay{position:fixed;inset:0;background:var(--graphite);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.auth-box{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px}
+.auth-box label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
+.auth-actions{display:flex;gap:8px;margin-top:4px}
+.auth-actions button{flex:1}
+.auth-error{color:var(--nva);font-size:12px;min-height:16px}
+.auth-msg{color:var(--va);font-size:12px;min-height:16px;margin:0}
+body.authed .auth-overlay{display:none}
+body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
+.user-email{color:#9aa1ad;font-size:12px;align-self:center;margin-right:2px}
 </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <div id="toast" class="toast"></div>
 
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <div class="brand" style="margin-bottom:2px"><b>CronoAnálise</b></div>
+    <p class="hint" style="margin:0 0 6px">Entre com e-mail e senha. Seus estudos ficam salvos na nuvem e aparecem em qualquer computador.</p>
+    <label>E-mail<input id="authEmail" type="email" placeholder="voce@email.com" autocomplete="username"></label>
+    <label>Senha<input id="authPass" type="password" placeholder="mínimo 6 caracteres" autocomplete="current-password" onkeydown="if(event.key==='Enter') doSignIn()"></label>
+    <div id="authError" class="auth-error"></div>
+    <p id="authMsg" class="auth-msg"></p>
+    <div class="auth-actions">
+      <button class="cta" onclick="doSignIn()">Entrar</button>
+      <button onclick="doSignUp()">Criar conta</button>
+    </div>
+  </div>
+</div>
+
 <header class="topbar">
-  <div class="brand"><b>CronoAnálise</b><span </span></div>
+  <div class="brand"><b>CronoAnálise</b></div>
   <div class="actions">
+    <span id="userEmail" class="user-email"></span>
     <button id="btnField" onclick="toggleField()">Modo Campo</button>
     <button onclick="manualSave()">Salvar</button>
     <button onclick="newStudy()">Novo Estudo</button>
     <button onclick="exportCSV()">Exportar CSV</button>
+    <button onclick="doSignOut()">Sair</button>
   </div>
 </header>
 
@@ -154,7 +183,7 @@ body.field .module{padding:26px}
     <div class="form-grid">
       <label>Nome do estudo<input id="studyName" placeholder="Ex.: Separação Linha A" onblur="saveStudy()"></label>
       <label>Processo<input id="process" placeholder="Processo" onblur="saveStudy()"></label>
-      <label>Usuário LMS<input id="operator" placeholder="Usuário" onblur="saveStudy()"></label>
+      <label>Usuário LMS<input id="operator" placeholder="Usuário LMS" onblur="saveStudy()"></label>
       <label>Champiom OMS<input id="observer" placeholder="Champiom OMS" onblur="saveStudy()"></label>
     </div>
     <div class="study-picker">
@@ -227,6 +256,13 @@ body.field .module{padding:26px}
 const STORAGE_KEY = 'cronoanalise_studies_v2';
 const OLD_STORAGE_KEY = 'studies';
 const TYPE_COLORS = {VA:'#2f7d4a',NVA:'#b03a2e',Espera:'#b8901f',Transporte:'#34618a'};
+
+/* ---------- Nuvem (Supabase) ---------- */
+const SUPABASE_URL = 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+let cloudPushTimer = null;
 
 let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1 };
 let elapsed=0, start=0, intv=null, lastMark=0;
@@ -550,6 +586,7 @@ function saveStudy(){
     currentCycle: state.currentCycle
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+  scheduleCloudPush(studies);
   loadStudyList();
   document.getElementById('studyList').value = name;
 }
@@ -600,6 +637,7 @@ function deleteStudy(){
   try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
   delete studies[name];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+  scheduleCloudPush(studies);
   loadStudyList();
   showToast('Estudo excluído');
 }
@@ -672,11 +710,89 @@ function exportCSV(){
   showToast('CSV exportado');
 }
 
-/* ---------- Inicialização ---------- */
-migrateOldData();
-loadStudyList();
-renderStages();
-renderRecords();
+/* ---------- Autenticação ---------- */
+function setAuthError(msg){ document.getElementById('authError').textContent = msg||''; }
+function setAuthMsg(msg){ document.getElementById('authMsg').textContent = msg||''; }
+
+function traduzErroAuth(msg){
+  if(/Invalid login credentials/i.test(msg)) return 'E-mail ou senha incorretos.';
+  if(/already registered|User already registered/i.test(msg)) return 'Este e-mail já tem conta. Tente entrar.';
+  if(/Password should be|at least 6/i.test(msg)) return 'Senha muito curta (mínimo 6 caracteres).';
+  if(/Unable to validate email/i.test(msg)) return 'E-mail inválido.';
+  return msg;
+}
+
+async function doSignIn(){
+  setAuthError(''); setAuthMsg('');
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  if(!email || !pass){ setAuthError('Preencha e-mail e senha.'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error) setAuthError(traduzErroAuth(error.message));
+}
+async function doSignUp(){
+  setAuthError(''); setAuthMsg('');
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  if(!email || !pass){ setAuthError('Preencha e-mail e senha.'); return; }
+  if(pass.length<6){ setAuthError('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  if(error){ setAuthError(traduzErroAuth(error.message)); return; }
+  if(data.user && !data.session){
+    setAuthMsg('Conta criada! Verifique seu e-mail para confirmar antes de entrar.');
+  }
+}
+async function doSignOut(){
+  await sb.auth.signOut();
+}
+
+/* ---------- Sincronização com a nuvem ---------- */
+async function loadCloudStudies(){
+  const { data, error } = await sb.from('crono_studies').select('data').eq('user_id', currentUser.id).maybeSingle();
+  if(error){ console.warn('Erro ao carregar da nuvem:', error); return null; }
+  return data ? data.data : null;
+}
+async function pushCloudStudies(studies){
+  if(!currentUser) return;
+  const { error } = await sb.from('crono_studies').upsert({ user_id: currentUser.id, data: studies, updated_at: new Date().toISOString() });
+  if(error) console.warn('Erro ao salvar na nuvem:', error);
+}
+function scheduleCloudPush(studies){
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(()=>pushCloudStudies(studies), 700);
+}
+
+async function initAfterLogin(){
+  document.getElementById('userEmail').textContent = currentUser.email;
+  const cloud = await loadCloudStudies();
+  let local = {};
+  try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  if(cloud && Object.keys(cloud).length){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud));
+  } else if(Object.keys(local).length){
+    await pushCloudStudies(local);
+  } else {
+    migrateOldData();
+    try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+    if(Object.keys(local).length) await pushCloudStudies(local);
+  }
+  newStudy();
+  loadStudyList();
+  showToast('Estudos sincronizados ✓');
+}
+
+sb.auth.onAuthStateChange(async (event, session)=>{
+  if(session && session.user){
+    currentUser = session.user;
+    document.body.classList.add('authed');
+    setAuthError(''); setAuthMsg('');
+    await initAfterLogin();
+  } else {
+    currentUser = null;
+    document.body.classList.remove('authed');
+    document.getElementById('authPass').value = '';
+  }
+});
 </script>
 </body>
 </html>
