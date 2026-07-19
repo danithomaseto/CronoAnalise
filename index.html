@@ -142,6 +142,79 @@ body.field .module{padding:26px}
 body.authed .auth-overlay{display:none}
 body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
 .user-email{color:#9aa1ad;font-size:12px;align-self:center;margin-right:2px}
+
+/* ---------- Tema Escuro ---------- */
+body.dark-theme{
+  --paper:#14171c;
+  --panel:#1c2128;
+  --ink:#e8eaed;
+  --ink-soft:#9aa1ad;
+  --line:#2b323d;
+}
+body.dark-theme input,body.dark-theme select{background:#20262f;color:var(--ink);border-color:var(--line)}
+body.dark-theme button{background:var(--panel);color:var(--ink);border-color:var(--line)}
+body.dark-theme button:hover{background:#262d38}
+body.dark-theme .actions button{background:#2a3140;border-color:#3a4150;color:#fff}
+body.dark-theme .actions button:hover{background:#343c4d}
+body.dark-theme .stage{background:var(--panel)}
+body.dark-theme .stage.flash{background:#2a3140}
+body.dark-theme .study-card{background:var(--panel)}
+body.dark-theme table.records td[contenteditable]:hover{background:#242b35}
+body.dark-theme .typebar-track{background:#242b35}
+body.dark-theme .kpi{background:#20262f}
+
+/* ---------- Navegação Dashboard / Editor ---------- */
+body.view-editor .view-dashboard-only{display:none!important}
+body.view-dashboard .view-editor-only{display:none!important}
+body.view-editor #dashboardView{display:none}
+body.view-dashboard #editorView{display:none}
+body:not(.authed) #dashboardView,body:not(.authed) #editorView{display:none}
+
+.dashboard-view{max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.dash-hero{display:flex;justify-content:center;padding:22px}
+.big-cta{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700;font-size:16px;padding:14px 26px;border-radius:12px}
+.big-cta:hover{background:#d98a3d}
+.dash-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.dash-toolbar input{flex:1;min-width:200px}
+.study-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.study-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:8px}
+.study-card-head b{font-size:15px}
+.study-card-meta{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ink-soft)}
+.study-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.study-card-actions button{flex:1;font-size:12px;padding:7px 8px}
+
+/* ---------- Editor: toolbar/tabs ---------- */
+.editor-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px}
+.editor-tabs{display:flex;gap:6px}
+.tab-btn.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700}
+
+/* ---------- Autosave indicator ---------- */
+.autosave-indicator{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;color:#9aa1ad;margin-right:auto;margin-left:14px}
+.autosave-status.as-pending{color:#e0b054}
+.autosave-status.as-saving{color:#7fb0e0}
+.autosave-status.as-saved{color:#6fcf8f}
+.autosave-status.as-error{color:#e06a5a}
+.autosave-time{font-size:11px;color:#9aa1ad}
+
+/* ---------- Histórico ---------- */
+.history-item{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.history-item:last-child{border-bottom:none}
+.history-time{font-family:var(--mono);font-size:12px;color:var(--ink-soft);min-width:130px}
+.history-text{font-size:13px}
+
+/* ---------- Modais (Editar Etapa / Configurações) ---------- */
+.modal-overlay{position:fixed;inset:0;background:rgba(20,23,28,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-box{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
+.modal-box label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
+
+.stage-edit{position:absolute;top:-8px;left:-8px;width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;padding:0;background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
+.stage-edit:hover{background:var(--accent);color:#fff;border-color:var(--accent-dark)}
+body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel)}
+
+@media(max-width:520px){
+  .study-cards{grid-template-columns:1fr}
+  .autosave-indicator{align-items:flex-start;margin-left:0}
+}
 </style>
 </head>
 <body>
@@ -166,17 +239,62 @@ body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
 
 <header class="topbar">
   <div class="brand"><b>CronoAnálise</b></div>
+  <div id="autosaveIndicator" class="autosave-indicator view-editor-only">
+    <span id="autosaveStatus" class="autosave-status as-saved">✔ Salvo</span>
+    <span id="autosaveTime" class="autosave-time"></span>
+  </div>
   <div class="actions">
     <span id="userEmail" class="user-email"></span>
-    <button id="btnField" onclick="toggleField()">Modo Campo</button>
-    <button onclick="manualSave()">Salvar</button>
-    <button onclick="newStudy()">Novo Estudo</button>
-    <button onclick="exportCSV()">Exportar CSV</button>
+    <button class="view-editor-only" onclick="backToDashboard()">← Voltar ao Dashboard</button>
+    <button class="view-editor-only" id="btnField" onclick="toggleField()">Modo Campo</button>
+    <button class="view-editor-only" onclick="manualSave()">Salvar</button>
+    <button onclick="goNewStudy()">Novo Estudo</button>
+    <button class="view-editor-only" onclick="exportCSV()">Exportar CSV</button>
+    <button onclick="toggleTheme()">🌙 Tema Escuro</button>
+    <button onclick="openSettings()">⚙ Configurações</button>
     <button onclick="doSignOut()">Sair</button>
   </div>
 </header>
 
-<main class="canvas">
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashboardView" class="dashboard-view">
+
+  <section class="panel dash-hero">
+    <button class="big-cta" onclick="goNewStudy()">➕ Novo Estudo</button>
+  </section>
+
+  <section class="panel">
+    <h2>Visão Geral</h2>
+    <div id="dashKpis" class="kpi-grid"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Estudos Recentes</h2>
+    <div class="dash-toolbar">
+      <input id="dashSearch" placeholder="Pesquisar estudo..." oninput="renderDashboard()">
+      <select id="dashSort" onchange="renderDashboard()">
+        <option value="recent">Mais recente</option>
+        <option value="oldest">Mais antigo</option>
+        <option value="az">Nome A-Z</option>
+        <option value="modified">Última modificação</option>
+      </select>
+    </div>
+    <div id="studyCards" class="study-cards"></div>
+  </section>
+
+</div>
+
+<!-- ===================== EDITOR (tela atual do cronômetro) ===================== -->
+<main class="canvas" id="editorView">
+
+  <div class="editor-toolbar view-editor-only">
+    <div class="editor-tabs">
+      <button id="tabCrono" class="tab-btn active" onclick="showEditorTab('crono')">Cronômetro</button>
+      <button id="tabHist" class="tab-btn" onclick="showEditorTab('hist')">Histórico</button>
+    </div>
+  </div>
+
+  <div id="editorMain">
 
   <section class="panel" data-field-hide>
     <h2>Estudo</h2>
@@ -190,6 +308,7 @@ body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
       <select id="studyList" onchange="loadSelectedStudy()"></select>
       <button class="danger" onclick="deleteStudy()">Excluir</button>
     </div>
+    <p id="studyMetaLine" class="hint" style="margin:10px 0 0"></p>
   </section>
 
   <section class="module">
@@ -250,7 +369,50 @@ body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
     </div>
   </section>
 
+  </div><!-- /editorMain -->
+
+  <section id="editorHistory" class="panel" style="display:none">
+    <h2>Histórico</h2>
+    <p class="hint">Linha do tempo dos eventos mais importantes deste estudo.</p>
+    <div id="historyTimeline"></div>
+  </section>
+
 </main>
+
+<!-- ===================== Modal: Editar Etapa ===================== -->
+<div id="stageEditModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h2>Editar Etapa</h2>
+    <label>Nome<input id="editStageName" placeholder="Nome da etapa"></label>
+    <label>Tipo
+      <select id="editStageType">
+        <option>VA</option>
+        <option>NVA</option>
+        <option>Espera</option>
+        <option>Transporte</option>
+      </select>
+    </label>
+    <div class="auth-actions">
+      <button class="cta" onclick="saveStageEdit()">Salvar</button>
+      <button onclick="closeStageEdit()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Configurações ===================== -->
+<div id="settingsModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h2>Configurações</h2>
+    <label style="flex-direction:row;align-items:center;justify-content:space-between;display:flex">
+      Tema escuro
+      <input id="settingsThemeToggle" type="checkbox" onchange="toggleTheme()">
+    </label>
+    <p class="hint" style="margin:0">CronoAnálise — Beta 8</p>
+    <div class="auth-actions">
+      <button class="cta" onclick="closeSettings()">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const STORAGE_KEY = 'cronoanalise_studies_v2';
@@ -264,10 +426,12 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let cloudPushTimer = null;
 
-let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1 };
+let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1,
+  meta:{ id:null, createdAt:null, updatedAt:null, lastSync:'', history:[] } };
 let elapsed=0, start=0, intv=null, lastMark=0;
 let wakeLock=null;
 let idCounter=0;
+let autosaveState='saved';
 
 function genId(prefix){ idCounter++; return prefix+'_'+idCounter+'_'+Date.now().toString(36); }
 
@@ -370,13 +534,50 @@ function addStage(){
   if(!n) return;
   state.stages.push({ id:genId('st'), name:n, type:document.getElementById('stageType').value });
   nameEl.value='';
+  logHistory('Etapa "'+n+'" adicionada');
   renderStages();
   saveStudy();
 }
 function removeStage(id){
   if(!confirm('Remover esta etapa da lista de captura? Os registros já marcados com ela são mantidos.')) return;
+  const s = state.stages.find(x=>x.id===id);
   state.stages = state.stages.filter(s=>s.id!==id);
+  logHistory('Etapa "'+(s?s.name:'')+'" removida');
   renderStages();
+  saveStudy();
+}
+
+/* ---------- Editar Etapa (modal) ---------- */
+let editingStageId = null;
+function openStageEdit(id){
+  const s = state.stages.find(x=>x.id===id);
+  if(!s) return;
+  editingStageId = id;
+  document.getElementById('editStageName').value = s.name;
+  document.getElementById('editStageType').value = s.type;
+  document.getElementById('stageEditModal').style.display = 'flex';
+}
+function closeStageEdit(){
+  editingStageId = null;
+  document.getElementById('stageEditModal').style.display = 'none';
+}
+function saveStageEdit(){
+  const s = state.stages.find(x=>x.id===editingStageId);
+  if(!s) return;
+  const newName = document.getElementById('editStageName').value.trim();
+  const newType = document.getElementById('editStageType').value;
+  if(!newName) return;
+  const oldName = s.name;
+  s.name = newName;
+  s.type = newType;
+  state.records.forEach(r=>{
+    if(r.stageId === s.id){ r.stageName = newName; r.type = newType; }
+  });
+  if(oldName !== newName){ logHistory('Etapa "'+oldName+'" renomeada para "'+newName+'"'); }
+  else{ logHistory('Etapa "'+newName+'" editada'); }
+  closeStageEdit();
+  renderStages();
+  renderRecords();
   saveStudy();
 }
 function renderStages(){
@@ -402,8 +603,15 @@ function renderStages(){
     rm.textContent = '✕';
     rm.onclick = (e)=>{ e.stopPropagation(); removeStage(s.id); };
 
+    const edit = document.createElement('button');
+    edit.className = 'stage-edit';
+    edit.title = 'Editar etapa';
+    edit.textContent = '✎';
+    edit.onclick = (e)=>{ e.stopPropagation(); openStageEdit(s.id); };
+
     wrapDiv.appendChild(btn);
     wrapDiv.appendChild(rm);
+    wrapDiv.appendChild(edit);
     wrap.appendChild(wrapDiv);
   });
 }
@@ -444,6 +652,7 @@ function editRecord(id, field, value){
 }
 function deleteRecord(id){
   state.records = state.records.filter(r=>r.id!==id);
+  logHistory('Registro excluído');
   renderRecords();
   saveStudy();
 }
@@ -567,7 +776,68 @@ function migrateOldData(){
     console.warn('Não foi possível importar estudos do Beta 5:', e);
   }
 }
+/* ---------- Metadados do estudo (Dashboard/Histórico/Autosave) ---------- */
+function ensureStudyMeta(s, name){
+  const now = new Date().toISOString();
+  if(!s.id) s.id = genId('study');
+  if(!s.createdAt) s.createdAt = now;
+  if(!s.updatedAt) s.updatedAt = s.createdAt;
+  if(s.lastSync===undefined) s.lastSync = '';
+  if(!s.history) s.history = [{ ts: s.createdAt, text:'Estudo criado' }];
+  if(!s.stages) s.stages = [];
+  if(!s.records) s.records = [];
+  if(!s.cycleQty) s.cycleQty = {1:1};
+  if(!s.currentCycle) s.currentCycle = 1;
+  return s;
+}
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  const today = new Date();
+  if(d.toDateString()===today.toDateString()){
+    return 'Hoje às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
+  return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function logHistory(text){
+  if(!state.meta) return;
+  if(!state.meta.history) state.meta.history = [];
+  state.meta.history.push({ ts: new Date().toISOString(), text });
+  if(state.meta.history.length>50) state.meta.history.shift();
+}
+function setAutosaveState(s){
+  autosaveState = s;
+  const el = document.getElementById('autosaveStatus');
+  if(!el) return;
+  const map = {
+    pending:'● Alterações pendentes',
+    saving:'🔄 Salvando...',
+    saved:'✔ Salvo',
+    error:'⚠ Erro ao salvar'
+  };
+  el.textContent = map[s] || '';
+  el.className = 'autosave-status as-'+s;
+}
+function renderStudyMeta(){
+  const line = document.getElementById('studyMetaLine');
+  const timeEl = document.getElementById('autosaveTime');
+  if(!state.meta) return;
+  if(line) line.textContent = 'Criado: '+fmtDate(state.meta.createdAt)+'  ·  Última edição: '+fmtDate(state.meta.updatedAt);
+  if(timeEl) timeEl.textContent = 'Última atualização: '+fmtDate(state.meta.updatedAt);
+}
+function renderHistory(){
+  const el = document.getElementById('historyTimeline');
+  if(!el) return;
+  const hist = (state.meta && state.meta.history) || [];
+  if(!hist.length){ el.innerHTML = '<p class="empty">Sem eventos registrados ainda.</p>'; return; }
+  el.innerHTML = hist.slice().reverse().map(h=>
+    '<div class="history-item"><div class="history-time">'+fmtDate(h.ts)+'</div><div class="history-text">'+escapeHtml(h.text)+'</div></div>'
+  ).join('');
+}
+
 function saveStudy(){
+  setAutosaveState('pending');
   let studies = {};
   try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
   const nameEl = document.getElementById('studyName');
@@ -576,19 +846,36 @@ function saveStudy(){
     name = 'Estudo_'+new Date().toLocaleString('pt-BR').replace(/[\/,: ]/g,'-');
     nameEl.value = name;
   }
+  const now = new Date().toISOString();
+  const existing = studies[name] || {};
+  ensureStudyMeta(existing, name);
+  const id = state.meta.id || existing.id;
+  const createdAt = state.meta.createdAt || existing.createdAt || now;
+  const history = (state.meta.history && state.meta.history.length) ? state.meta.history : (existing.history || []);
   studies[name] = {
+    id: id,
     process: document.getElementById('process').value,
     operator: document.getElementById('operator').value,
     observer: document.getElementById('observer').value,
     stages: state.stages,
     records: state.records,
     cycleQty: state.cycleQty,
-    currentCycle: state.currentCycle
+    currentCycle: state.currentCycle,
+    createdAt: createdAt,
+    updatedAt: now,
+    lastSync: existing.lastSync || '',
+    history: history
   };
+  state.meta.id = id;
+  state.meta.createdAt = createdAt;
+  state.meta.updatedAt = now;
+  state.meta.history = history;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
   scheduleCloudPush(studies);
   loadStudyList();
   document.getElementById('studyList').value = name;
+  renderStudyMeta();
+  renderHistory();
 }
 function manualSave(){
   saveStudy();
@@ -614,10 +901,12 @@ function loadSelectedStudy(){
   try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
   const s = studies[name];
   if(!s) return;
+  ensureStudyMeta(s, name);
   state.stages = s.stages || [];
   state.records = s.records || [];
   state.cycleQty = s.cycleQty || {1:1};
   state.currentCycle = s.currentCycle || 1;
+  state.meta = { id:s.id, createdAt:s.createdAt, updatedAt:s.updatedAt, lastSync:s.lastSync||'', history:s.history||[] };
   document.getElementById('studyName').value = name;
   document.getElementById('process').value = s.process || '';
   document.getElementById('operator').value = s.operator || '';
@@ -626,6 +915,8 @@ function loadSelectedStudy(){
   document.getElementById('qty').value = (state.cycleQty[state.currentCycle] ?? 1);
   resetTimer();
   renderStages(); renderRecords(); renderStats();
+  renderStudyMeta(); renderHistory(); setAutosaveState('saved');
+  showEditorTab('crono');
   showToast('Estudo "'+name+'" carregado');
 }
 function deleteStudy(){
@@ -643,9 +934,10 @@ function deleteStudy(){
 }
 function newStudy(){
   if(state.records.length>0 || state.stages.length>0){
-    if(!confirm('Começar um novo estudo? As etapas e registros atuais não salvos serão perdidos (estudos já salvos continuam na lista).')) return;
+    if(!confirm('Começar um novo estudo? As etapas e registros atuais não salvos serão perdidos (estudos já salvos continuam na lista).')) return false;
   }
   state.stages=[]; state.records=[]; state.cycleQty={1:1}; state.currentCycle=1;
+  state.meta = { id:null, createdAt:null, updatedAt:null, lastSync:'', history:[{ ts:new Date().toISOString(), text:'Estudo criado' }] };
   resetTimer();
   document.getElementById('cycle').textContent='1';
   document.getElementById('qty').value=1;
@@ -655,7 +947,177 @@ function newStudy(){
   document.getElementById('observer').value='';
   document.getElementById('studyList').value='';
   renderStages(); renderRecords(); renderStats();
+  renderStudyMeta(); renderHistory();
+  showEditorTab('crono');
   showToast('Novo estudo iniciado');
+  return true;
+}
+
+/* ---------- Navegação Dashboard ⇄ Editor ---------- */
+function goNewStudy(){
+  if(newStudy()===false) return;
+  saveStudy();
+  switchToEditor();
+}
+function switchToEditor(){
+  document.body.classList.remove('view-dashboard');
+  document.body.classList.add('view-editor');
+}
+function backToDashboard(){
+  document.body.classList.remove('view-editor');
+  document.body.classList.add('view-dashboard');
+  renderDashboard();
+}
+function openStudy(name){
+  document.getElementById('studyList').value = name;
+  loadSelectedStudy();
+  switchToEditor();
+}
+function showEditorTab(tab){
+  const main = document.getElementById('editorMain');
+  const hist = document.getElementById('editorHistory');
+  const tabCrono = document.getElementById('tabCrono');
+  const tabHist = document.getElementById('tabHist');
+  if(!main || !hist) return;
+  main.style.display = (tab==='hist') ? 'none' : '';
+  hist.style.display = (tab==='hist') ? '' : 'none';
+  if(tabCrono) tabCrono.classList.toggle('active', tab!=='hist');
+  if(tabHist) tabHist.classList.toggle('active', tab==='hist');
+  if(tab==='hist') renderHistory();
+}
+
+/* ---------- Dashboard ---------- */
+function loadAllStudies(){
+  let studies = {};
+  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
+  let changed = false;
+  Object.keys(studies).forEach(k=>{
+    const before = JSON.stringify(studies[k]);
+    ensureStudyMeta(studies[k], k);
+    if(JSON.stringify(studies[k])!==before) changed = true;
+  });
+  if(changed){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+    scheduleCloudPush(studies);
+  }
+  return studies;
+}
+function persistStudies(studies){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+  scheduleCloudPush(studies);
+}
+function duplicateStudy(name){
+  const studies = loadAllStudies();
+  const s = studies[name];
+  if(!s) return;
+  const clone = JSON.parse(JSON.stringify(s));
+  const now = new Date().toISOString();
+  clone.id = genId('study');
+  clone.createdAt = now;
+  clone.updatedAt = now;
+  clone.lastSync = '';
+  clone.history = [{ ts: now, text:'Estudo duplicado de "'+name+'"' }];
+  let newName = name+' (cópia)';
+  let i = 2;
+  while(studies[newName]){ newName = name+' (cópia '+i+')'; i++; }
+  studies[newName] = clone;
+  persistStudies(studies);
+  renderDashboard();
+  showToast('Estudo duplicado');
+}
+function deleteStudyCard(name){
+  if(!confirm('Excluir permanentemente o estudo "'+name+'"? Esta ação não pode ser desfeita.')) return;
+  const studies = loadAllStudies();
+  delete studies[name];
+  persistStudies(studies);
+  renderDashboard();
+  showToast('Estudo excluído');
+}
+function renderDashboard(){
+  const searchEl = document.getElementById('dashSearch');
+  const sortEl = document.getElementById('dashSort');
+  if(!searchEl || !sortEl) return;
+  const studies = loadAllStudies();
+  const q = (searchEl.value||'').toLowerCase().trim();
+  const sort = sortEl.value;
+  let list = Object.keys(studies).map(name=>({ name, ...studies[name] }));
+
+  if(q){
+    list = list.filter(s=>
+      (s.name||'').toLowerCase().includes(q) ||
+      (s.process||'').toLowerCase().includes(q) ||
+      (s.operator||'').toLowerCase().includes(q)
+    );
+  }
+  list.sort((a,b)=>{
+    if(sort==='az') return a.name.localeCompare(b.name);
+    if(sort==='oldest') return new Date(a.createdAt)-new Date(b.createdAt);
+    if(sort==='modified') return new Date(b.updatedAt)-new Date(a.updatedAt);
+    return new Date(b.createdAt)-new Date(a.createdAt);
+  });
+
+  let totalRecords=0, totalTime=0, lastModified=null;
+  Object.values(studies).forEach(s=>{
+    totalRecords += (s.records||[]).length;
+    totalTime += (s.records||[]).reduce((a,r)=>a+(Number(r.time)||0),0);
+    if(!lastModified || new Date(s.updatedAt) > new Date(lastModified.updatedAt)) lastModified = s;
+  });
+  const kpisEl = document.getElementById('dashKpis');
+  if(kpisEl){
+    kpisEl.innerHTML =
+      '<div class="kpi"><span class="kpi-label">Total de Estudos</span><span class="kpi-val">'+Object.keys(studies).length+'</span></div>'+
+      '<div class="kpi"><span class="kpi-label">Total de Registros</span><span class="kpi-val">'+totalRecords+'</span></div>'+
+      '<div class="kpi"><span class="kpi-label">Tempo Total Registrado</span><span class="kpi-val">'+toBR(totalTime)+'s</span></div>'+
+      '<div class="kpi"><span class="kpi-label">Último Estudo Modificado</span><span class="kpi-val" style="font-size:14px">'+(lastModified?escapeHtml(lastModified.name||''):'—')+'</span></div>';
+  }
+
+  const wrap = document.getElementById('studyCards');
+  if(!wrap) return;
+  if(list.length===0){
+    wrap.innerHTML = '<p class="empty">Nenhum estudo encontrado. Crie um novo estudo para começar.</p>';
+    return;
+  }
+  wrap.innerHTML = list.map(s=>{
+    const cycles = Object.keys(s.cycleQty||{}).length;
+    const safeName = s.name.replace(/'/g, "\\'");
+    return '<div class="study-card">'+
+      '<div class="study-card-head"><b>'+escapeHtml(s.name)+'</b></div>'+
+      '<div class="study-card-meta">'+
+        (s.process ? '<span>Processo: '+escapeHtml(s.process)+'</span>' : '')+
+        (s.operator ? '<span>Operador: '+escapeHtml(s.operator)+'</span>' : '')+
+        '<span>Criado: '+fmtDate(s.createdAt)+'</span>'+
+        '<span>Últ. edição: '+fmtDate(s.updatedAt)+'</span>'+
+        '<span>'+(s.records||[]).length+' registros · '+cycles+' ciclos</span>'+
+      '</div>'+
+      '<div class="study-card-actions">'+
+        '<button class="cta" onclick="openStudy(\''+safeName+'\')">Abrir</button>'+
+        '<button onclick="duplicateStudy(\''+safeName+'\')">Duplicar</button>'+
+        '<button class="danger" onclick="deleteStudyCard(\''+safeName+'\')">Excluir</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+/* ---------- Tema Escuro ---------- */
+function toggleTheme(){
+  document.body.classList.toggle('dark-theme');
+  const isDark = document.body.classList.contains('dark-theme');
+  localStorage.setItem('crono_theme', isDark ? 'dark' : 'light');
+  const chk = document.getElementById('settingsThemeToggle');
+  if(chk) chk.checked = isDark;
+}
+function applySavedTheme(){
+  if(localStorage.getItem('crono_theme')==='dark') document.body.classList.add('dark-theme');
+}
+
+/* ---------- Configurações (modal) ---------- */
+function openSettings(){
+  const chk = document.getElementById('settingsThemeToggle');
+  if(chk) chk.checked = document.body.classList.contains('dark-theme');
+  document.getElementById('settingsModal').style.display = 'flex';
+}
+function closeSettings(){
+  document.getElementById('settingsModal').style.display = 'none';
 }
 
 /* ---------- Modo Campo ---------- */
@@ -707,6 +1169,8 @@ function exportCSV(){
   a.href = URL.createObjectURL(blob);
   a.download = (name.replace(/[^a-z0-9_-]+/gi,'_')||'CronoAnalise')+'.csv';
   a.click();
+  logHistory('Exportado CSV');
+  saveStudy();
   showToast('CSV exportado');
 }
 
@@ -754,10 +1218,23 @@ async function loadCloudStudies(){
 }
 async function pushCloudStudies(studies){
   if(!currentUser) return;
+  setAutosaveState('saving');
   const { error } = await sb.from('crono_studies').upsert({ user_id: currentUser.id, data: studies, updated_at: new Date().toISOString() });
-  if(error) console.warn('Erro ao salvar na nuvem:', error);
+  if(error){
+    console.warn('Erro ao salvar na nuvem:', error);
+    setAutosaveState('error');
+    return;
+  }
+  setAutosaveState('saved');
+  const name = document.getElementById('studyName') ? document.getElementById('studyName').value : '';
+  if(name && studies[name]){
+    studies[name].lastSync = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
+    if(state.meta) state.meta.lastSync = studies[name].lastSync;
+  }
 }
 function scheduleCloudPush(studies){
+  setAutosaveState('pending');
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(()=>pushCloudStudies(studies), 700);
 }
@@ -776,8 +1253,10 @@ async function initAfterLogin(){
     try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
     if(Object.keys(local).length) await pushCloudStudies(local);
   }
-  newStudy();
   loadStudyList();
+  document.body.classList.remove('view-editor');
+  document.body.classList.add('view-dashboard');
+  renderDashboard();
   showToast('Estudos sincronizados ✓');
 }
 
@@ -790,9 +1269,12 @@ sb.auth.onAuthStateChange(async (event, session)=>{
   } else {
     currentUser = null;
     document.body.classList.remove('authed');
+    document.body.classList.remove('view-editor');
+    document.body.classList.add('view-dashboard');
     document.getElementById('authPass').value = '';
   }
 });
+applySavedTheme();
 </script>
 </body>
 </html>
