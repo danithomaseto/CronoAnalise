@@ -269,6 +269,7 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
       <button class="view-editor-only" onclick="exportCSV();closeMenu()">Exportar CSV</button>
       <button onclick="toggleTheme();closeMenu()">🌙 Tema Escuro</button>
       <button onclick="openSettings();closeMenu()">⚙ Configurações</button>
+      <button id="btnAdmin" onclick="openAdminPanel();closeMenu()" style="display:none">👤 Administração</button>
       <button onclick="doSignOut();closeMenu()">Sair</button>
     </div>
   </div>
@@ -438,6 +439,24 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
   </div>
 </div>
 
+<!-- ===================== Modal: Administração ===================== -->
+<div id="adminModal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:600px">
+    <h2>Administração — Usuários</h2>
+    <p class="hint" id="adminSummary" style="margin:0">Carregando…</p>
+    <div class="table-wrap">
+      <table class="summary-table">
+        <thead><tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th></tr></thead>
+        <tbody id="adminUsersTable"></tbody>
+      </table>
+    </div>
+    <div class="auth-actions">
+      <button onclick="loadAdminUsers()">↺ Atualizar</button>
+      <button class="cta" onclick="closeAdminPanel()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY = 'cronoanalise_studies_v2';
 const OLD_STORAGE_KEY = 'studies';
@@ -447,6 +466,7 @@ const TYPE_COLORS = {VA:'#2f7d4a',NVA:'#b03a2e',Espera:'#b8901f',Transporte:'#34
 const SUPABASE_URL = 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ADMIN_EMAIL = 'daniel.thomaseto@dhl.com';
 let currentUser = null;
 let cloudPushTimer = null;
 
@@ -1177,6 +1197,55 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape') closeMenu();
 });
 
+/* ---------- Administração (visível só para ADMIN_EMAIL) ---------- */
+async function logUserActivity(){
+  if(!currentUser) return;
+  try{
+    const { data: existing } = await sb.from('crono_user_activity')
+      .select('login_count').eq('user_id', currentUser.id).maybeSingle();
+    await sb.from('crono_user_activity').upsert({
+      user_id: currentUser.id,
+      email: currentUser.email,
+      last_seen: new Date().toISOString(),
+      login_count: (existing?.login_count || 0) + 1
+    }, { onConflict: 'user_id' });
+  }catch(e){
+    console.warn('Não foi possível registrar atividade do usuário:', e);
+  }
+}
+function updateAdminButtonVisibility(){
+  const btn = document.getElementById('btnAdmin');
+  if(!btn) return;
+  btn.style.display = (currentUser && currentUser.email === ADMIN_EMAIL) ? '' : 'none';
+}
+async function openAdminPanel(){
+  if(!currentUser || currentUser.email !== ADMIN_EMAIL){ showToast('Acesso restrito'); return; }
+  document.getElementById('adminModal').style.display = 'flex';
+  await loadAdminUsers();
+}
+function closeAdminPanel(){
+  document.getElementById('adminModal').style.display = 'none';
+}
+async function loadAdminUsers(){
+  const summary = document.getElementById('adminSummary');
+  const tbody = document.getElementById('adminUsersTable');
+  summary.textContent = 'Carregando…';
+  tbody.innerHTML = '';
+  const { data, error } = await sb.from('crono_user_activity').select('*').order('last_seen', { ascending:false });
+  if(error){
+    summary.textContent = 'Erro ao carregar (verifique se a tabela crono_user_activity foi criada no Supabase): '+error.message;
+    return;
+  }
+  const rows = data || [];
+  summary.textContent = 'Total de usuários registrados: '+rows.length;
+  tbody.innerHTML = rows.length ? rows.map(r=>
+    '<tr><td>'+escapeHtml(r.email)+'</td>'+
+    '<td>'+fmtDate(r.first_seen)+'</td>'+
+    '<td>'+fmtDate(r.last_seen)+'</td>'+
+    '<td>'+(r.login_count||0)+'</td></tr>'
+  ).join('') : '<tr><td colspan="4" class="empty">Nenhum usuário registrado ainda.</td></tr>';
+}
+
 /* ---------- Modo Campo ---------- */
 function toggleField(){
   document.body.classList.toggle('field');
@@ -1305,6 +1374,8 @@ function scheduleCloudPush(studies){
 
 async function initAfterLogin(){
   document.getElementById('userEmail').textContent = currentUser.email;
+  updateAdminButtonVisibility();
+  logUserActivity();
   const cloud = await loadCloudStudies();
   let local = {};
   try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
@@ -1336,6 +1407,8 @@ sb.auth.onAuthStateChange(async (event, session)=>{
     document.body.classList.remove('view-editor');
     document.body.classList.add('view-dashboard');
     document.getElementById('authPass').value = '';
+    updateAdminButtonVisibility();
+    closeAdminPanel();
   }
 });
 applySavedTheme();
