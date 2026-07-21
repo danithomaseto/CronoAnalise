@@ -44,6 +44,18 @@ input,select{font-family:inherit;border:1px solid var(--line);background:#fff;bo
 .actions button:hover{background:#343c4d}
 .actions button.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128}
 
+.menu-wrap{position:relative;display:flex;align-items:center;gap:10px}
+.menu-btn{background:#2a3140;border-color:#3a4150;color:#fff;font-size:17px;line-height:1;padding:9px 13px;border-radius:10px}
+.menu-btn:hover{background:#343c4d}
+.menu-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--graphite-2);border:1px solid #3a4150;border-radius:12px;box-shadow:var(--shadow);padding:8px;display:none;flex-direction:column;gap:6px;min-width:220px;z-index:30}
+.menu-dropdown.open{display:flex}
+.menu-dropdown button{background:#2a3140;border-color:#3a4150;color:#fff;text-align:left;width:100%}
+.menu-dropdown button:hover{background:#343c4d}
+.menu-dropdown button.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128}
+@media(max-width:480px){
+ .menu-dropdown{right:-8px;min-width:200px}
+}
+
 .canvas{max-width:920px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 
 .panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
@@ -111,6 +123,9 @@ table.records td[contenteditable]:hover{background:#faf8f2}
 table.records select{padding:4px 6px;font-size:12px}
 .danger{background:#fff;border-color:var(--nva);color:var(--nva);padding:4px 9px;font-size:12px}
 .danger:hover{background:var(--nva);color:#fff}
+
+.notes-field{width:100%;min-height:120px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px 14px;color:var(--ink)}
+body.dark-theme .notes-field{background:#20262f;color:var(--ink);border-color:var(--line)}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,16px);background:var(--graphite);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:50}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -243,16 +258,19 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
     <span id="autosaveStatus" class="autosave-status as-saved">✔ Salvo</span>
     <span id="autosaveTime" class="autosave-time"></span>
   </div>
-  <div class="actions">
+  <div class="menu-wrap" id="menuWrap">
     <span id="userEmail" class="user-email"></span>
-    <button class="view-editor-only" onclick="backToDashboard()">← Voltar ao Dashboard</button>
-    <button class="view-editor-only" id="btnField" onclick="toggleField()">Modo Campo</button>
-    <button class="view-editor-only" onclick="manualSave()">Salvar</button>
-    <button onclick="goNewStudy()">Novo Estudo</button>
-    <button class="view-editor-only" onclick="exportCSV()">Exportar CSV</button>
-    <button onclick="toggleTheme()">🌙 Tema Escuro</button>
-    <button onclick="openSettings()">⚙ Configurações</button>
-    <button onclick="doSignOut()">Sair</button>
+    <button class="menu-btn" id="menuBtn" onclick="toggleMenu()" aria-haspopup="true" aria-expanded="false" title="Menu">☰</button>
+    <div class="menu-dropdown" id="menuDropdown">
+      <button class="view-editor-only" onclick="backToDashboard();closeMenu()">← Voltar ao Dashboard</button>
+      <button class="view-editor-only" id="btnField" onclick="toggleField();closeMenu()">Modo Campo</button>
+      <button class="view-editor-only" onclick="manualSave();closeMenu()">Salvar</button>
+      <button onclick="goNewStudy();closeMenu()">Novo Estudo</button>
+      <button class="view-editor-only" onclick="exportCSV();closeMenu()">Exportar CSV</button>
+      <button onclick="toggleTheme();closeMenu()">🌙 Tema Escuro</button>
+      <button onclick="openSettings();closeMenu()">⚙ Configurações</button>
+      <button onclick="doSignOut();closeMenu()">Sair</button>
+    </div>
   </div>
 </header>
 
@@ -325,7 +343,7 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
   </section>
 
   <section class="panel">
-    <h2>Quantidade do Ciclo</h2>
+    <h2>Quantidade da Etapa</h2>
     <div class="qty-row">
       <button onclick="changeQty(-10)">-10</button>
       <button onclick="changeQty(-1)">-1</button>
@@ -333,7 +351,7 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
       <button onclick="changeQty(1)">+1</button>
       <button onclick="changeQty(10)">+10</button>
     </div>
-    <p class="hint" style="text-align:center;margin-top:10px">Quantidade produzida neste ciclo. Some é fechada e zerada ao iniciar um novo ciclo.</p>
+    <p class="hint" style="text-align:center;margin-top:10px">Quantidade que será gravada na próxima etapa marcada. Se não alterar, o valor padrão é 1. Após marcar a etapa, o campo volta para 1 automaticamente.</p>
   </section>
 
   <section class="panel">
@@ -362,11 +380,17 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
     <div class="table-wrap">
       <table class="records">
         <thead>
-          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd do Ciclo</th><th>Ações</th></tr>
+          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Ações</th></tr>
         </thead>
         <tbody id="recordsTable"></tbody>
       </table>
     </div>
+  </section>
+
+  <section class="panel">
+    <h2>Observações / Oportunidades Observadas</h2>
+    <p class="hint">Anote pontos de atenção, desvios, ideias de melhoria ou qualquer observação relevante sobre este estudo.</p>
+    <textarea id="notes" class="notes-field" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..." onblur="saveStudy()"></textarea>
   </section>
 
   </div><!-- /editorMain -->
@@ -426,7 +450,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let cloudPushTimer = null;
 
-let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1,
+let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1, notes:'',
   meta:{ id:null, createdAt:null, updatedAt:null, lastSync:'', history:[] } };
 let elapsed=0, start=0, intv=null, lastMark=0;
 let wakeLock=null;
@@ -505,23 +529,19 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible' && intv) requestWakeLock();
 });
 
-/* ---------- Quantidade por ciclo ---------- */
+/* ---------- Quantidade por etapa ---------- */
 function changeQty(v){
   const e = document.getElementById('qty');
   e.value = Math.max(0, parseNumber(e.value)+v);
-  onQtyInput();
 }
 function onQtyInput(){
-  state.cycleQty[state.currentCycle] = parseNumber(document.getElementById('qty').value);
-  saveStudy();
-  renderStats();
+  const e = document.getElementById('qty');
+  if(parseNumber(e.value)<0) e.value = 0;
 }
 function newCycle(){
-  state.cycleQty[state.currentCycle] = parseNumber(document.getElementById('qty').value);
   state.currentCycle++;
   document.getElementById('cycle').textContent = state.currentCycle;
   lastMark = elapsed/1000;
-  state.cycleQty[state.currentCycle] = 1;
   document.getElementById('qty').value = 1;
   saveStudy();
   renderStats();
@@ -627,14 +647,18 @@ function markStage(id){
   const now = elapsed/1000;
   const t = +(now-lastMark).toFixed(2);
   lastMark = now;
+  const qtyEl = document.getElementById('qty');
+  const qty = parseNumber(qtyEl.value) || 1;
   state.records.push({
     id: genId('r'),
     cycle: state.currentCycle,
     stageId: stage.id,
     stageName: stage.name,
     type: stage.type,
-    time: t
+    time: t,
+    qty: qty
   });
+  qtyEl.value = 1;
   flashStage(id);
   renderRecords();
   saveStudy();
@@ -647,6 +671,7 @@ function editRecord(id, field, value){
   if(field==='time') r.time = parseNumber(value);
   else if(field==='stageName') r.stageName = value.trim() || r.stageName;
   else if(field==='type') r.type = value;
+  else if(field==='qty') r.qty = Math.max(0, parseNumber(value));
   saveStudy();
   renderRecords();
 }
@@ -669,7 +694,7 @@ function renderRecords(){
       '<td contenteditable onblur="editRecord(\''+r.id+'\',\'stageName\',this.innerText)">'+escapeHtml(r.stageName)+'</td>'+
       '<td><select onchange="editRecord(\''+r.id+'\',\'type\',this.value)">'+typeOptions+'</select></td>'+
       '<td contenteditable onblur="editRecord(\''+r.id+'\',\'time\',this.innerText)">'+toBR(r.time)+'</td>'+
-      '<td>'+toBR(state.cycleQty[r.cycle]??0,0)+'</td>'+
+      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'qty\',this.innerText)">'+toBR(r.qty??1,0)+'</td>'+
       '<td><button class="danger" onclick="deleteRecord(\''+r.id+'\')">Excluir</button></td>';
     tb.appendChild(tr);
   });
@@ -696,7 +721,7 @@ function computeStageSummary(){
 }
 function renderStats(){
   const total = state.records.reduce((a,r)=>a+r.time,0);
-  const qtyTotal = Object.values(state.cycleQty).reduce((a,q)=>a+(Number(q)||0),0);
+  const qtyTotal = state.records.reduce((a,r)=>a+(Number(r.qty)||0),0);
   const hours = total/3600;
   const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
   const {byType} = computeTypeBreakdown();
@@ -760,7 +785,8 @@ function migrateOldData(){
           stageId: idx>=0 ? stageWithIds[idx].id : null,
           stageName:r.stage,
           type:r.type,
-          time:Number(r.time)||0
+          time:Number(r.time)||0,
+          qty:Number(r.qty)||1
         };
       });
       migrated[name+' (importado)'] = {
@@ -788,6 +814,12 @@ function ensureStudyMeta(s, name){
   if(!s.records) s.records = [];
   if(!s.cycleQty) s.cycleQty = {1:1};
   if(!s.currentCycle) s.currentCycle = 1;
+  if(s.notes===undefined || s.notes===null) s.notes = '';
+  s.records.forEach(r=>{
+    if(r.qty===undefined || r.qty===null || r.qty===''){
+      r.qty = (s.cycleQty && s.cycleQty[r.cycle]!==undefined) ? (Number(s.cycleQty[r.cycle])||1) : 1;
+    }
+  });
   return s;
 }
 function fmtDate(iso){
@@ -861,6 +893,7 @@ function saveStudy(){
     records: state.records,
     cycleQty: state.cycleQty,
     currentCycle: state.currentCycle,
+    notes: document.getElementById('notes').value,
     createdAt: createdAt,
     updatedAt: now,
     lastSync: existing.lastSync || '',
@@ -906,13 +939,15 @@ function loadSelectedStudy(){
   state.records = s.records || [];
   state.cycleQty = s.cycleQty || {1:1};
   state.currentCycle = s.currentCycle || 1;
+  state.notes = s.notes || '';
   state.meta = { id:s.id, createdAt:s.createdAt, updatedAt:s.updatedAt, lastSync:s.lastSync||'', history:s.history||[] };
   document.getElementById('studyName').value = name;
   document.getElementById('process').value = s.process || '';
   document.getElementById('operator').value = s.operator || '';
   document.getElementById('observer').value = s.observer || '';
+  document.getElementById('notes').value = s.notes || '';
   document.getElementById('cycle').textContent = state.currentCycle;
-  document.getElementById('qty').value = (state.cycleQty[state.currentCycle] ?? 1);
+  document.getElementById('qty').value = 1;
   resetTimer();
   renderStages(); renderRecords(); renderStats();
   renderStudyMeta(); renderHistory(); setAutosaveState('saved');
@@ -936,7 +971,7 @@ function newStudy(){
   if(state.records.length>0 || state.stages.length>0){
     if(!confirm('Começar um novo estudo? As etapas e registros atuais não salvos serão perdidos (estudos já salvos continuam na lista).')) return false;
   }
-  state.stages=[]; state.records=[]; state.cycleQty={1:1}; state.currentCycle=1;
+  state.stages=[]; state.records=[]; state.cycleQty={1:1}; state.currentCycle=1; state.notes='';
   state.meta = { id:null, createdAt:null, updatedAt:null, lastSync:'', history:[{ ts:new Date().toISOString(), text:'Estudo criado' }] };
   resetTimer();
   document.getElementById('cycle').textContent='1';
@@ -945,6 +980,7 @@ function newStudy(){
   document.getElementById('process').value='';
   document.getElementById('operator').value='';
   document.getElementById('observer').value='';
+  document.getElementById('notes').value='';
   document.getElementById('studyList').value='';
   renderStages(); renderRecords(); renderStats();
   renderStudyMeta(); renderHistory();
@@ -1120,6 +1156,27 @@ function closeSettings(){
   document.getElementById('settingsModal').style.display = 'none';
 }
 
+/* ---------- Menu do topo ---------- */
+function toggleMenu(){
+  const dd = document.getElementById('menuDropdown');
+  const btn = document.getElementById('menuBtn');
+  const open = dd.classList.toggle('open');
+  if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function closeMenu(){
+  const dd = document.getElementById('menuDropdown');
+  const btn = document.getElementById('menuBtn');
+  dd.classList.remove('open');
+  if(btn) btn.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('menuWrap');
+  if(wrap && !wrap.contains(e.target)) closeMenu();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape') closeMenu();
+});
+
 /* ---------- Modo Campo ---------- */
 function toggleField(){
   document.body.classList.toggle('field');
@@ -1144,9 +1201,9 @@ function exportCSV(){
   lines.push(['Cronoanalista',observer].join(';'));
   lines.push(['Data da exportação',now].join(';'));
   lines.push('');
-  lines.push(['Ciclo','Etapa','Tipo','Tempo(s)','Qtd do Ciclo'].join(';'));
+  lines.push(['Ciclo','Etapa','Tipo','Tempo(s)','Qtd'].join(';'));
   state.records.forEach(r=>{
-    lines.push([r.cycle, r.stageName, r.type, toBR(r.time), toBR(state.cycleQty[r.cycle]??0,0)].join(';'));
+    lines.push([r.cycle, r.stageName, r.type, toBR(r.time), toBR(r.qty??1,0)].join(';'));
   });
   lines.push('');
   lines.push('Resumo por Etapa');
@@ -1156,12 +1213,19 @@ function exportCSV(){
   });
   lines.push('');
   const total = state.records.reduce((a,r)=>a+r.time,0);
-  const qtyTotal = Object.values(state.cycleQty).reduce((a,q)=>a+(Number(q)||0),0);
+  const qtyTotal = state.records.reduce((a,r)=>a+(Number(r.qty)||0),0);
   const hours = total/3600;
   const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
   lines.push(['Tempo Total(s)',toBR(total)].join(';'));
   lines.push(['Quantidade Total',toBR(qtyTotal,0)].join(';'));
   lines.push(['Produtividade (un/h)',toBR(prod)].join(';'));
+
+  const notes = document.getElementById('notes').value.trim();
+  if(notes){
+    lines.push('');
+    lines.push('Observações / Oportunidades Observadas');
+    notes.split('\n').forEach(l=>lines.push(l.replace(/;/g,',')));
+  }
 
   const csv = lines.join('\r\n');
   const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
