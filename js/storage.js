@@ -387,6 +387,10 @@ export function isOwner(id) {
   return getAccess(id).role === 'owner';
 }
 
+export function getAccessMap() {
+  return clone(access);
+}
+
 export function setAccessMap(map) {
   access = clone(map);
   persistAccess().then(() => broadcast({ t: 'access' }));

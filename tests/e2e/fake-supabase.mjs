@@ -17,6 +17,7 @@ export function createFakeSupabase({ rpcEnabled = false, v2 = false, versionThro
     crono_study_version: []         // {id, study_id, data, saved_at, created_at}
   };
   let versionSeq = 1;
+  const interfere = {};
   let lastServerTs = 0;
   const serverNow = () => { lastServerTs = Math.max(Date.now(), lastServerTs + 1); return new Date(lastServerTs).toISOString().replace('Z', '+00:00'); };
   const log = [];
@@ -242,6 +243,14 @@ export function createFakeSupabase({ rpcEnabled = false, v2 = false, versionThro
             return route.fulfill({ status: 201, headers: cors(origin) });
           }
           if (method === 'PATCH') {
+            const idf = filters.find(f => f.col === 'id');
+            if (idf && interfere[idf.val]) {
+              // outro aparelho gravou entre o pull e o push deste
+              const row = db.crono_study.get(idf.val);
+              const fn = interfere[idf.val];
+              delete interfere[idf.val];
+              if (row) { row.data = fn(JSON.parse(JSON.stringify(row.data))); row.updated_at = serverNow(); }
+            }
             const rows = [...db.crono_study.values()].filter(r => canSee(u, r.id)).filter(r => matches(r, filters));
             const writable = rows.filter(r => r.owner_id === u.id || roleOf(u, r.id) === 'editor');
             log[log.length - 1].matched = writable.length;
@@ -302,7 +311,7 @@ export function createFakeSupabase({ rpcEnabled = false, v2 = false, versionThro
       const visible = row => row.user_id === u.id || (m[1] === 'crono_user_activity' && isAdmin && method === 'GET');
       try {
         if (method === 'GET') {
-          let rows = [...table.values()].filter(visible).filter(r => matches(r, filters));
+          const rows = [...table.values()].filter(visible).filter(r => matches(r, filters));
           const order = url.searchParams.get('order');
           if (order) { const [col, dir] = order.split('.'); rows.sort((a, b) => (a[col] < b[col] ? -1 : 1) * (dir === 'desc' ? -1 : 1)); }
           return json(200, rows.map(r => project(r, select)));
@@ -356,6 +365,7 @@ export function createFakeSupabase({ rpcEnabled = false, v2 = false, versionThro
     userId(email) { return users.get(email).id; },
     setRow(email, data, updatedAt) { const id = users.get(email).id; db.crono_studies.set(id, { user_id: id, data, updated_at: pgTs(updatedAt) }); },
     enableV2() { v2 = true; },
+    interfereNextPatch(id, fn) { interfere[id] = fn; },
     rows() { return [...db.crono_study.values()]; },
     rowById(id) { return db.crono_study.get(id); },
     shares() { return db.crono_study_share; },

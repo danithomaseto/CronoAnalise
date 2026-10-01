@@ -21,10 +21,18 @@ const str = v => (typeof v === 'string' ? v : v === undefined || v === null ? ''
 const tsOf = iso => { const t = Date.parse(iso); return isNaN(t) ? 0 : t; };
 const validIso = v => typeof v === 'string' && !isNaN(Date.parse(v));
 
+/** @typedef {import('./types.js').Study} Study */
+/** @typedef {import('./types.js').Store} Store */
+
+/** @returns {Store} */
 export function emptyStore() {
   return { format: FORMAT, studies: {}, deleted: {} };
 }
 
+/**
+ * @param {{ id?: string, name?: string, now?: string }} [opts]
+ * @returns {Study}
+ */
 export function createStudy({ id, name = '', now = new Date().toISOString() } = {}) {
   return {
     id,
@@ -46,6 +54,11 @@ export function createStudy({ id, name = '', now = new Date().toISOString() } = 
 /* Normaliza um estudo preenchendo campos ausentes. Determinística: a mesma entrada
    gera a mesma saída em qualquer aparelho (IDs faltantes vêm de hash). Campos
    desconhecidos são preservados. */
+/**
+ * @param {any} raw
+ * @param {{ id?: string, name?: string, now?: string }} [opts]
+ * @returns {Study}
+ */
 export function normalizeStudy(raw, { id, name, now = new Date().toISOString() } = {}) {
   const s = isPlainObject(raw) ? { ...raw } : {};
   delete s.lastSync; // metadado da v2, substituído pelo status global de sincronização
@@ -213,6 +226,11 @@ export function convertLegacyMap(map, now) {
 }
 
 /* Aceita qualquer formato (v3, v2 ou lixo) e devolve um store v3 válido. */
+/**
+ * @param {any} raw
+ * @param {string} [now]
+ * @returns {Store}
+ */
 export function normalizeStore(raw, now = new Date().toISOString()) {
   if (!isPlainObject(raw)) return emptyStore();
   if (raw.format !== FORMAT) return convertLegacyMap(raw, now);
@@ -283,6 +301,11 @@ function mergeItems(listA, listB, delA, delB, uOf, aIsNewer) {
   return { items: out, tomb };
 }
 
+/**
+ * @param {Study|null} a
+ * @param {Study|null} b
+ * @returns {Study}
+ */
 export function mergeStudy(a, b) {
   if (!a) return b;
   if (!b) return a;
@@ -338,6 +361,11 @@ export function mergeStudy(a, b) {
 
 /* Mescla dois stores estudo a estudo (e, dentro de cada estudo, registro a
    registro); uma exclusão do estudo vence se for posterior à última edição dele. */
+/**
+ * @param {Store} a
+ * @param {Store} b
+ * @returns {Store}
+ */
 export function mergeStores(a, b) {
   const out = emptyStore();
   const ids = new Set([

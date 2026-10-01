@@ -4,8 +4,12 @@
 
 export const APP_VERSION = 'Beta 10';
 
-export const SUPABASE_URL = 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
-export const SUPABASE_ANON_KEY = 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
+/* Os testes contra o Supabase de homologação (tests/staging) injetam outro projeto
+   em window.__CRONO_CONFIG__ antes de o app carregar. Em produção isso não existe. */
+const override = (typeof globalThis !== 'undefined' && globalThis.__CRONO_CONFIG__) || {};
+
+export const SUPABASE_URL = override.supabaseUrl || 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
+export const SUPABASE_ANON_KEY = override.supabaseAnonKey || 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
 
 /* Só controla a visibilidade do botão no menu. Quem garante o acesso é a policy
    "admin ve toda atividade" no banco. */

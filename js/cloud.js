@@ -342,6 +342,8 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
       });
       storage.listStudies().forEach(s => { if (!accessMap[s.id]) accessMap[s.id] = { role: 'owner' }; });
     }
+    // papel mudou (ex.: "ver" → "editar") sem o estudo mudar: a interface precisa saber
+    if (stableStringify(storage.getAccessMap()) !== stableStringify(accessMap)) changedIds = null;
     storage.setAccessMap(accessMap);
     storage.setSyncMeta({ versions, lastPullAt, blobVersion: blobVersion || meta.blobVersion });
 

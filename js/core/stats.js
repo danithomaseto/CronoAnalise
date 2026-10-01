@@ -29,8 +29,8 @@ function sampleStdDev(values, mean) {
 }
 
 /**
- * @param study  estudo normalizado
- * @param prefs  { confidence: 90|95|99, error: % }
+ * @param {import('./types.js').Study} study  estudo normalizado
+ * @param {import('./types.js').Prefs} [prefs] nível de confiança (90/95/99) e erro relativo (%)
  */
 export function computeStats(study, prefs = {}) {
   const confidence = prefs.confidence || 95;

@@ -17,7 +17,8 @@ test('todo arquivo do app shell do service worker existe', () => {
 });
 
 test('todo módulo JS e o supabase vendorizado estão no cache offline', () => {
-  const files = [...walk('js'), ...walk('vendor').filter(f => f.endsWith('.js'))];
+  // types.js só tem tipos JSDoc (o navegador nunca carrega)
+  const files = [...walk('js').filter(f => f !== 'js/core/types.js'), ...walk('vendor').filter(f => f.endsWith('.js'))];
   files.forEach(f => assert.ok(shell.includes(f), 'fora do APP_SHELL do sw.js: ' + f));
 });
 

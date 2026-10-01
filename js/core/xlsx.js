@@ -28,7 +28,7 @@ export function colName(i) {
 }
 
 export function sheetName(name, used = new Set()) {
-  let base = String(name || 'Planilha').replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || 'Planilha';
+  const base = String(name || 'Planilha').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Planilha';
   let n = base, i = 2;
   while (used.has(n.toLowerCase())) { const suf = ' ' + i++; n = base.slice(0, 31 - suf.length) + suf; }
   used.add(n.toLowerCase());

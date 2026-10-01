@@ -949,6 +949,13 @@ T('banco novo (um estudo por linha): migração automática, incremental, confli
   if (await A.isVisible('#editorView')) { await A.click('[data-action=toggle-menu]'); await A.click('#menuDropdown [data-action=back-dashboard]'); }
   await A.click('.study-card:has-text("Antigo 1") [data-action=open-study]');
   await B.click('.study-card:has-text("Antigo 1") [data-action=open-study]');
+  // "terceiro aparelho" grava no mesmo estudo bem na hora em que A envia
+  const studyRowId = fake.rows().find(r => r.data.name === 'Antigo 1').id;
+  fake.interfereNextPatch(studyRowId, data => {
+    data.records.push({ id: 'r_outro', cycle: 1, stageId: null, stageName: 'Outro aparelho', type: 'VA', time: 1, qty: 1, ts: new Date().toISOString() });
+    data.updatedAt = new Date().toISOString();
+    return data;
+  });
   await A.click('#btnStart');
   await sleep(200);
   await A.click('.stage');
@@ -959,7 +966,8 @@ T('banco novo (um estudo por linha): migração automática, incremental, confli
   await B.evaluate(() => window.dispatchEvent(new Event('online')));
   await sleep(2500);
   const row = fake.rows().find(r => r.data.name === 'Antigo 1');
-  check(row.data.records.length === 1 && row.data.notes === 'nota B', 'linha do estudo tem a marcação de A e a nota de B');
+  check(row.data.records.length === 2 && row.data.notes === 'nota B' && row.data.records.some(r => r.id === 'r_outro'),
+    'linha tem a marcação de A, a do outro aparelho e a nota de B (' + row.data.records.length + ' registros)');
   const conflicts = fake.log.filter(l => l.method === 'PATCH' && l.path.startsWith('/rest/v1/crono_study?') && l.matched === 0).length;
   check(conflicts >= 1, 'conflito detectado e resolvido por estudo (' + conflicts + ')');
   check(fake.rowOf('ana@x.com').updated_at === blobBefore, 'modo novo não grava mais na tabela antiga');
@@ -1094,7 +1102,7 @@ T('admin com estatísticas, IndexedDB e excluir conta', async () => {
   // dados ficam no IndexedDB
   const idb = await A.evaluate(async () => new Promise(res => {
     const r = indexedDB.open('cronoanalise-' + JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sb-')))).user.id);
-    r.onsuccess = () => { const t = r.result.transaction('studies').objectStore('studies').getAll(); t.onsuccess = () => res(t.result.map(s => s.name)); };
+    r.onsuccess = () => { const t = r.result.transaction('studies').objectStore('studies').getAll(); t.onsuccess = () => { r.result.close(); res(t.result.map(s => s.name)); }; };
   }));
   check(idb.includes('Da Ana'), 'estudo gravado no IndexedDB');
   check(!(await A.evaluate(() => Object.keys(localStorage).some(k => k.endsWith(':store')))), 'store grande não fica mais no localStorage');

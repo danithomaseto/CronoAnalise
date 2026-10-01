@@ -10,7 +10,7 @@ Ferramenta web de cronoanálise (*time & motion study*) para captura e análise 
 
 ## O que é
 
-O CronoAnálise nasceu para substituir a combinação cronômetro de celular + planilha por um fluxo único: você define as etapas do processo, cronometra cada ciclo tocando na etapa correspondente, e a ferramenta calcula os indicadores na hora — tempo total, produtividade, % de tempo que agrega valor, variabilidade e tamanho de amostra — além de manter um histórico organizado por estudo.
+O CronoAnálise nasceu para substituir a combinação cronômetro de celular + planilha por um fluxo único: você define as etapas do processo, cronometra cada ciclo tocando na etapa correspondente, e a ferramenta calcula os indicadores na hora — tempo total, produtividade, % de tempo que agrega valor, variabilidade, tamanho de amostra e takt time — além de manter um histórico organizado por estudo.
 
 Cada etapa é classificada segundo a lógica clássica de análise de processo:
 
@@ -26,45 +26,52 @@ Cada etapa é classificada segundo a lógica clássica de análise de processo:
 ### Captura
 - ⏱️ Cronômetro contínuo organizado em ciclos, com o tempo calculado no instante exato do toque
 - 🔁 O cronômetro sobrevive a recarregar a página, trocar de aba ou o celular fechar o navegador — cada estudo guarda o próprio cronômetro
+- ⚡ **Interrupção** (elemento estranho): registra o tempo à parte, fora dos cálculos (tecla `0`)
+- 📝 Observação em cada registro (na tabela ou no botão 📝 da última marcação)
 - ↶ **Desfazer** marcação, novo ciclo, zerar cronômetro ou exclusão de registro (o tempo volta para o elemento em andamento)
-- 🏷️ Etapas configuráveis por estudo (nome + tipo VA/NVA/Espera/Transporte)
+- 🏷️ Etapas configuráveis por estudo (nome + tipo), **reordenáveis**, e **modelos** (novo estudo com as mesmas etapas e parâmetros)
 - ✏️ Registros editáveis direto na tabela, removíveis ou **ignorados nos cálculos** sem excluir
 - 🔢 Quantidade produzida por etapa
-- ⌨️ Atalhos no computador: `Espaço` iniciar/pausar · `1–9` marcar etapa · `N` novo ciclo · `Ctrl+Z` desfazer
+- ⌨️ Atalhos no computador: `Espaço` iniciar/pausar · `1–9` marcar etapa · `0` interrupção · `N` novo ciclo · `Ctrl+Z` desfazer
 
-### Indicadores em tempo real
-- Tempo total, quantidade total, produtividade (unid./hora), % de Valor Agregado, nº de ciclos e tempo médio de ciclo
-- Distribuição de tempo por tipo
-- Resumo por etapa: ocorrências, total, média, mínimo, máximo, **desvio padrão, coeficiente de variação, ciclos necessários** (n = (z·s / (e·x̄))², com confiança e erro configuráveis) e produtividade por etapa
+### Indicadores e análise
+- Tempo total, quantidade, produtividade (unid./hora), % de Valor Agregado, nº de ciclos, tempo médio e desvio do ciclo
+- Resumo por etapa: ocorrências, total, média, mínimo, máximo, **desvio padrão, coeficiente de variação, ciclos necessários** (n = (z·s / (e·x̄))², confiança e erro configuráveis) e produtividade por etapa
+- **Gráficos**: composição do tempo por ciclo (Yamazumi), Pareto das etapas e tempo de ciclo com faixa de ±2σ — com tooltip (mouse, toque e teclado) e cores testadas para daltonismo
+- **Takt time**: demanda e tempo disponível → takt, tempo por unidade e operadores necessários
+- Fator de ritmo e tolerâncias → tempo normal e tempo padrão
+- Etapas que **contam para a produção** (evita somar a quantidade de todas as etapas)
 - Destaque de valores fora de ±2σ (possíveis toques errados)
-- Opcional: **fator de ritmo e tolerâncias** → tempo normal e tempo padrão
-- Opcional: marcar as etapas que **contam para a produção** (evita somar a quantidade de todas as etapas)
+- ⚖ **Comparação antes × depois** de dois estudos (indicadores, composição e etapas)
 
-### Organização
-- 📊 Dashboard com todos os estudos: busca, ordenação e ações rápidas (abrir, duplicar, excluir), com selo de cronômetro em andamento
-- 🕓 Linha do tempo de eventos por estudo
-- 📝 Campo de observações por estudo, incluído na exportação
+### Organização e equipe
+- 📊 Dashboard com busca, ordenação e ações rápidas (abrir, modelo, duplicar, excluir), com selo de cronômetro em andamento
+- 🕓 Linha do tempo de eventos por estudo e **versões anteriores no servidor** com restauração¹
+- 👥 **Compartilhamento** de estudos por e-mail, para ver ou editar¹
+- 👤 Painel de administração com acessos e estatísticas por usuário
 
-### Nuvem
+### Nuvem e dados
 - 🔐 Autenticação por e-mail/senha, com recuperação de senha
-- ☁️ Sincronização automática entre dispositivos: as alterações são **mescladas estudo a estudo** (dois aparelhos não apagam o trabalho um do outro) e exclusões se propagam
-- 📴 Funciona offline de verdade (PWA): abre sem internet, salva no aparelho e sincroniza sozinho quando a conexão volta
+- ☁️ Sincronização automática entre aparelhos, **mesclando registro a registro**: dois aparelhos editando o mesmo estudo somam as alterações; exclusões se propagam
+- 📴 Funciona offline de verdade (PWA): abre sem internet, salva no aparelho (IndexedDB) e sincroniza quando a conexão volta
 - 👥 Dados locais separados por conta — seguro em computador compartilhado
-- 💾 Backup/restauração em JSON (em Configurações)
+- 💾 Backup/restauração em JSON e **excluir minha conta e meus dados** (LGPD)¹
 
 ### Feito para uso em campo
-- 📱 "Modo Campo": alvos de toque maiores, sem botões de edição perto das etapas
-- 🔆 Mantém a tela acesa durante a coleta (Wake Lock API)
-- 📲 Instalável na tela inicial do celular
-- 🌙 Tema escuro (segue o sistema por padrão)
+- 📱 "Modo Campo": alvos de toque maiores, layout próprio com o celular deitado
+- 📳 Vibração ao marcar etapa (configurável) e tela sempre acesa durante a coleta
+- 📲 Instalável na tela inicial do celular · 🌙 Tema escuro (segue o sistema)
 
 ### Exportação
-- 📄 CSV pronto para o Excel brasileiro (`;` como separador, vírgula decimal, BOM UTF-8) — registros, resumo por etapa, totais e observações, com proteção contra fórmulas maliciosas
-- 🖨️ Impressão / PDF do estudo
+- 📗 **Excel (.xlsx)** com abas: Resumo, Registros, Por etapa, Por ciclo, Pareto e Observações
+- 📄 CSV pronto para o Excel brasileiro (`;`, vírgula decimal, BOM UTF-8), com proteção contra fórmulas maliciosas
+- 🖨️ Relatório para imprimir / salvar em PDF, com os gráficos
+
+¹ Requer a migração `supabase/migrations/002_estudos_por_linha.sql` no banco (ver abaixo).
 
 ## Tech stack
 
-- **Frontend:** HTML5, CSS3 (variáveis nativas, sem framework), JavaScript vanilla (módulos ES)
+- **Frontend:** HTML5, CSS3 (variáveis nativas, sem framework), JavaScript vanilla (módulos ES), gráficos em SVG e Excel gerados sem bibliotecas
 - **Backend/Nuvem:** [Supabase](https://supabase.com) (autenticação + Postgres com RLS)
 - **Deploy:** Vercel (site estático)
 - **Sem build step, sem bundler, sem dependências** — o `supabase-js` vem versionado em `vendor/`
@@ -79,52 +86,52 @@ npx serve .            # ou: npm start
 python3 -m http.server 5173
 ```
 
-Depois abra `http://localhost:5173` (ou a porta indicada).
+## Testes e verificações
 
-### Testes
+| Comando | O que faz | Precisa instalar |
+|---|---|---|
+| `npm test` | Lógica pura: cronômetro, indicadores, mesclagem (inclui 200 cenários aleatórios), CSV, Excel, gráficos | nada |
+| `npm run lint` | ESLint + checagem de tipos (JSDoc) em `js/core` | `npm i --no-save eslint@9 typescript@5` |
+| `npm run test:sql` | Aplica `schema.sql` e a migração 002 num **Postgres real** e testa RLS, gatilhos e funções | `npm i --no-save embedded-postgres pg` |
+| `npm run test:e2e` | 17 cenários no navegador com o `supabase-js` real contra um Supabase simulado (sem internet) | `npm i --no-save playwright && npx playwright install chromium` |
+| `npm run test:staging` | Fluxo completo contra um **Supabase de homologação** (pulado sem credenciais) | Playwright + variáveis `STAGING_*` |
 
-```bash
-npm test               # node --test, sem dependências
-```
+Todos rodam no GitHub Actions. Para ativar o teste de homologação: crie um projeto Supabase separado, rode nele `supabase/schema.sql` e a migração 002, crie um usuário de teste e cadastre os segredos `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, `STAGING_EMAIL` e `STAGING_PASSWORD` no repositório (*Settings → Secrets and variables → Actions*).
 
-Os testes cobrem a lógica pura (cronômetro, indicadores, CSV, migração e mesclagem de dados) e a consistência do cache offline.
+## Banco de dados
 
-Testes de ponta a ponta no navegador (login, cronometragem, desfazer, recarregar a página, dois aparelhos sincronizando, offline, migração de dados antigos, XSS, PWA…), usando a biblioteca real do `supabase-js` contra um Supabase simulado — não acessa a internet nem o banco de produção:
+- [`supabase/schema.sql`](supabase/schema.sql) — as tabelas atuais (`crono_studies` e `crono_user_activity`) com suas políticas de segurança (RLS) e a função opcional de contagem de acessos.
+- [`supabase/migrations/002_estudos_por_linha.sql`](supabase/migrations/002_estudos_por_linha.sql) — **um estudo por linha** (sincronização incremental, sem limite de tamanho), **compartilhamento**, **versões anteriores** (backup automático por 90 dias), **administradores em tabela**, **estatísticas** para o painel e **exclusão de conta**.
 
-```bash
-npm i --no-save playwright && npx playwright install chromium
-npm run test:e2e
-```
+Como aplicar: Supabase → *SQL Editor* → colar o arquivo → *Run*. Os scripts são idempotentes (podem rodar de novo). O app **detecta sozinho** quando a migração 002 foi aplicada: cada aparelho copia os estudos da tabela antiga (que é mantida intacta como backup) e passa a usar o novo formato. Até lá, tudo continua funcionando como antes.
+
+Para a recuperação de senha, a URL do app precisa estar em *Authentication → URL Configuration* (Site URL ou Redirect URLs).
 
 ## Estrutura
 
 ```
 index.html              Página única (HTML)
-css/styles.css          Estilos (inclui tema escuro, Modo Campo e impressão)
-js/main.js              Entrada: login, navegação, ações e atalhos
-js/editor.js            Tela do estudo: cronômetro, etapas, registros, indicadores
+css/styles.css          Estilos (tema escuro, Modo Campo, impressão, gráficos)
+js/main.js              Entrada: login, navegação, ações, atalhos
+js/editor*.js           Tela do estudo (núcleo, cronômetro, etapas, registros, indicadores, histórico)
 js/dashboard.js         Tela inicial com a lista de estudos
-js/cloud.js             Supabase: sincronização com mesclagem e registro de acesso
-js/storage.js           localStorage separado por usuário
-js/auth.js              Entrar, criar conta, recuperar senha
-js/ui.js                Toast, modais, menu, tema
+js/share.js             Compartilhamento
+js/compare.js           Comparação antes × depois
+js/cloud.js             Supabase: sincronização (2 modos), compartilhamento, versões, admin, conta
+js/storage.js           IndexedDB (com fallback para localStorage), separado por usuário
+js/auth.js · js/ui.js   Autenticação · toast, modais, menu, tema
 js/config.js            Configurações (Supabase, admin, rótulos dos campos)
 js/core/                Lógica pura, testável no Node
-  timer.js              Cronômetro serializável
-  stats.js              Indicadores e estatística
-  csv.js                Exportação CSV
-  model.js              Formato dos dados, migração e merge entre aparelhos
+  model.js              Formato dos dados, migração e mesclagem registro a registro
+  timer.js · stats.js   Cronômetro serializável · indicadores, takt, Pareto, série por ciclo
+  charts.js             Gráficos SVG
+  csv.js · xlsx.js · zip.js · report.js   Exportações
+  types.js              Tipos (JSDoc)
 sw.js                   Service worker (offline)
-supabase/schema.sql     Tabelas, políticas RLS e função opcional de acesso
-tests/                  Testes (node --test)
+supabase/               schema.sql e migrations/
+tests/                  Testes (node --test), e2e/, sql/, staging/
 vendor/                 supabase-js versionado
 ```
-
-## Banco de dados
-
-O script [`supabase/schema.sql`](supabase/schema.sql) documenta as tabelas `crono_studies` e `crono_user_activity` com suas políticas de segurança (RLS). A seção 3 é opcional: cria a função `crono_log_activity()` que conta os acessos de forma atômica no servidor — o app usa a função automaticamente quando ela existe.
-
-Para a recuperação de senha, a URL do app precisa estar em *Authentication → URL Configuration* (Site URL ou Redirect URLs) no Supabase.
 
 ## Autor
 

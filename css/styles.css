@@ -374,13 +374,21 @@ body.readonly .stage{cursor:default;opacity:.85}
 .dash-toolbar #btnCompare{white-space:nowrap}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
-/* ---------- Modo Campo com o celular deitado ---------- */
+/* ---------- Modo Campo com o celular deitado ----------
+   Cronômetro fixo à esquerda; etapas primeiro à direita; sem abas e dicas. */
 @media (orientation:landscape) and (max-height:560px){
-  body.field .canvas{max-width:none;display:grid;grid-template-columns:minmax(260px,38%) 1fr;align-items:start;gap:12px}
-  body.field .editor-toolbar{grid-column:1/-1}
+  body.field .topbar{padding:6px 14px}
+  body.field .brand b{font-size:15px}
+  body.field .editor-toolbar,body.field .panel p.hint{display:none}
+  body.field .canvas{max-width:none;display:grid;grid-template-columns:minmax(250px,36%) 1fr;align-items:start;gap:10px;padding:10px}
   body.field #editorMain{display:contents}
-  body.field .module{position:sticky;top:64px;grid-column:1;grid-row:2 / span 3;padding:16px}
-  body.field .timer-display{font-size:44px}
-  body.field #editorMain > section:not(.module){grid-column:2}
-  body.field .stage{height:76px}
+  body.field .module{position:sticky;top:58px;grid-column:1;grid-row:1 / span 3;padding:14px;order:0}
+  body.field .timer-display{font-size:40px}
+  body.field .timer-controls button{padding:7px 10px}
+  body.field #editorMain > section.panel{grid-column:2;padding:12px}
+  body.field .stages-panel{order:1}
+  body.field .qty-panel{order:2}
+  body.field .notes-panel{order:3}
+  body.field .stage{height:72px}
+  body.field .panel h2{margin-bottom:8px}
 }

@@ -8,7 +8,7 @@ const TYPES = {
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'
 };
 
-export function startServer(root, port = 0) {
+export function startServer(root, port = 0, { headers: applyHeaders = true } = {}) {
   const vercel = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
   const rules = vercel.headers.map(h => ({ re: new RegExp('^' + h.source.replace('(.*)', '.*') + '$'), headers: h.headers }));
   const server = http.createServer((req, res) => {
@@ -20,7 +20,7 @@ export function startServer(root, port = 0) {
       res.writeHead(404); res.end('not found'); return;
     }
     const headers = { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' };
-    rules.forEach(r => { if (r.re.test(url.pathname)) r.headers.forEach(h => { headers[h.key.toLowerCase()] = h.value; }); });
+    if (applyHeaders) rules.forEach(r => { if (r.re.test(url.pathname)) r.headers.forEach(h => { headers[h.key.toLowerCase()] = h.value; }); });
     res.writeHead(200, headers);
     fs.createReadStream(file).pipe(res);
   });

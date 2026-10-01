@@ -13,7 +13,7 @@ import { buildCSV } from './core/csv.js';
 import { createWorkbook } from './core/xlsx.js';
 import { buildReportSheets } from './core/report.js';
 import { createStudy, nextStagePos } from './core/model.js';
-import { fmtDate, escapeHtml, parseNumber, uid, safeFilename, autoStudyName } from './core/format.js';
+import { fmtDate, escapeHtml, parseNumber, uid, safeFilename, autoStudyName, stableStringify } from './core/format.js';
 import { $, showToast, downloadFile } from './ui.js';
 import * as timer from './editor-timer.js';
 import * as stages from './editor-stages.js';
@@ -170,7 +170,8 @@ export function applyExternalUpdate() {
       return;
     }
     const ro = !storage.canEdit(S.current.id);
-    if (Date.parse(s.updatedAt) > Date.parse(S.current.updatedAt) || ro !== S.readonly) {
+    // compara o conteúdo: a mesclagem mantém a maior data, que pode ser a deste aparelho
+    if (stableStringify(s) !== stableStringify(S.current) || ro !== S.readonly) {
       S.current = s;
       S.readonly = ro;
       document.body.classList.toggle('readonly', ro);

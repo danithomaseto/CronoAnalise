@@ -96,5 +96,5 @@ export function safeFilename(name, fallback = 'CronoAnalise') {
 }
 
 export function autoStudyName(date = new Date()) {
-  return 'Estudo_' + date.toLocaleString('pt-BR').replace(/[\/,: ]/g, '-');
+  return 'Estudo_' + date.toLocaleString('pt-BR').replace(/[/,: ]/g, '-');
 }
