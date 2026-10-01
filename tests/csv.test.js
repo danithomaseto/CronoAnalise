@@ -31,9 +31,9 @@ test('buildCSV mantém o layout: cabeçalho, registros, resumo, totais e observa
   assert.equal(lines[1], 'Processo;Picking');
   assert.equal(lines[2], 'Usuário LMS;op1');
   assert.equal(lines[3], 'Champion OMS;obs1');
-  assert.ok(lines.includes('Ciclo;Etapa;Tipo;Tempo(s);Qtd;Horário;Considerado'));
-  assert.ok(lines.some(l => l.startsWith('1;Pegar;VA;1,50;2;') && l.endsWith(';Sim')));
-  assert.ok(lines.some(l => l.startsWith('2;Pegar;VA;2,50;1;') && l.endsWith(';Não')));
+  assert.ok(lines.includes('Ciclo;Etapa;Tipo;Tempo(s);Qtd;Horário;Considerado;Observação'));
+  assert.ok(lines.some(l => l.startsWith('1;Pegar;VA;1,50;2;') && l.endsWith(';Sim;')));
+  assert.ok(lines.some(l => l.startsWith('2;Pegar;VA;2,50;1;') && l.endsWith(';Não;')));
   assert.ok(lines.includes('Tempo Total(s);1,50'));
   assert.ok(lines.includes('Produtividade (un/h);4800,00'));
   assert.ok(lines.includes('"Espera recorrente; falta de material"'));

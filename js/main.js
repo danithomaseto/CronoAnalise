@@ -1,11 +1,17 @@
 /* Ponto de entrada: autenticação, navegação, ações da interface e atalhos. */
 
-import { ADMIN_EMAIL, APP_VERSION } from './config.js';
+import { APP_VERSION } from './config.js';
 import * as storage from './storage.js';
-import { sb, createSync, logActivity, listActivity } from './cloud.js';
+import { sb, createSync, logActivity, checkIsAdmin, adminStats, deleteAccount } from './cloud.js';
 import * as auth from './auth.js';
 import * as editor from './editor.js';
+import * as timer from './editor-timer.js';
+import * as stagesUI from './editor-stages.js';
+import * as recordsUI from './editor-records.js';
+import * as historyUI from './editor-history.js';
 import { initDashboard, renderDashboard, duplicateStudy, deleteStudy } from './dashboard.js';
+import { initShare, openShare, canShare, leaveShare, setMyEmail } from './share.js';
+import { initCompare, openCompare } from './compare.js';
 import { normalizeStore, mergeStores } from './core/model.js';
 import { escapeHtml, fmtDate } from './core/format.js';
 import * as T from './core/timer.js';
@@ -18,17 +24,22 @@ let currentUser = null;
 let activeUserId = null;
 let activityLoggedFor = null;
 let lastFocusPull = 0;
+let isAdmin = false;
 
 const sync = createSync({
   onStatus: status => { setSyncStatus(status); renderSyncTime(); },
-  onMerged: () => {
-    if (isEditorView()) editor.applyExternalUpdate();
-    else renderDashboard();
-  }
+  onMerged: () => refreshViews(),
+  onMode: () => updateShareButton()
 });
 
 function isEditorView() {
   return document.body.classList.contains('view-editor');
+}
+
+function refreshViews() {
+  if (isEditorView()) editor.applyExternalUpdate();
+  else renderDashboard();
+  updateShareButton();
 }
 
 function renderSyncTime() {
@@ -39,6 +50,11 @@ function renderSyncTime() {
     const m = storage.getUser() ? storage.getSyncMeta() : null;
     setSyncTime(m && m.lastSyncAt ? 'Sincronizado: ' + fmtDate(m.lastSyncAt) : '');
   }
+}
+
+function updateShareButton() {
+  const cur = editor.getCurrent();
+  $('btnShare').hidden = !(cur && !editor.isUnsaved() && canShare(cur.id));
 }
 
 /* ---------- Navegação ---------- */
@@ -63,22 +79,29 @@ function showDashboard() {
   setFieldMode(false);
   renderDashboard();
   renderSyncTime();
+  updateShareButton();
   saveSession();
 }
 
 function openStudyView(id) {
   if (!editor.openStudy(id)) return false;
   setView('editor');
+  editor.showTab('crono');
   renderSyncTime();
+  updateShareButton();
   saveSession();
   return true;
 }
 
-function newStudyView() {
-  editor.newStudy();
+function newStudyView(templateId) {
+  const tpl = templateId ? storage.getStudy(templateId) : null;
+  editor.newStudy(tpl);
   setView('editor');
+  editor.showTab('crono');
   renderSyncTime();
+  updateShareButton();
   saveSession();
+  if (tpl) showToast('Novo estudo criado a partir de "' + tpl.name + '"');
 }
 
 function setFieldMode(on) {
@@ -149,6 +172,7 @@ async function doSignOut() {
     // tenta enviar o que falta antes de sair (os dados continuam salvos neste aparelho de qualquer forma)
     await Promise.race([sync.syncNow(), new Promise(r => setTimeout(r, 3000))]);
   }
+  await storage.flushWrites();
   await auth.signOut();
 }
 
@@ -166,8 +190,7 @@ async function saveNewPassword() {
 }
 
 /* O Supabase dispara SIGNED_IN também ao voltar para a aba e TOKEN_REFRESHED a cada
-   ~1h. Antes isso reiniciava o app (voltava ao Dashboard e zerava o cronômetro).
-   Agora só reage quando o usuário realmente muda. O trabalho é despachado para fora
+   ~1h. Só reage quando o usuário realmente muda. O trabalho é despachado para fora
    do callback, como recomenda a documentação do Supabase. */
 function handleAuthEvent(event, session) {
   document.body.classList.remove('booting');
@@ -188,14 +211,17 @@ function handleAuthEvent(event, session) {
 }
 
 async function enterApp(user) {
-  storage.setUser(user.id);
-  const { migrated } = storage.initUserStore();
+  $('bootScreen').textContent = 'Carregando seus estudos…';
+  document.body.classList.add('booting');
+  const { migrated } = await storage.setUser(user.id);
+  if (activeUserId !== user.id) return;
   $('userEmail').textContent = user.email;
-  $('btnAdmin').hidden = user.email !== ADMIN_EMAIL;
+  setMyEmail(user.email);
   document.body.classList.add('authed');
   setAuthError(''); setAuthMsg('');
   $('authPass').value = '';
-  sync.reset(user.id);
+  sync.reset(user.id, user.email);
+  checkIsAdmin(user).then(v => { isAdmin = v; $('btnAdmin').hidden = !v; });
 
   if (activityLoggedFor !== user.id) {
     activityLoggedFor = user.id;
@@ -207,13 +233,12 @@ async function enterApp(user) {
   const firstPull = !!storage.getSyncMeta().legacyIds;
   if (firstPull && navigator.onLine !== false) {
     $('bootScreen').textContent = 'Sincronizando seus estudos…';
-    document.body.classList.add('booting');
-    await Promise.race([sync.syncNow({ pull: true }), new Promise(r => setTimeout(r, 8000))]);
-    document.body.classList.remove('booting');
+    await Promise.race([sync.syncNow({ pull: true, full: true }), new Promise(r => setTimeout(r, 8000))]);
     if (activeUserId !== user.id) return;
   }
+  document.body.classList.remove('booting');
   restoreView();
-  if (!firstPull) sync.syncNow({ pull: true });
+  if (!firstPull) sync.syncNow({ pull: true, full: true });
   else if (migrated) showToast('Estudos da versão anterior importados ✓');
 }
 
@@ -222,6 +247,7 @@ function exitApp() {
   sync.reset(null);
   activeUserId = null;
   currentUser = null;
+  isAdmin = false;
   storage.setUser(null);
   closeModal();
   closeMenu();
@@ -234,13 +260,16 @@ function exitApp() {
   setSyncTime('');
 }
 
-/* ---------- Configurações / backup / admin ---------- */
+/* ---------- Configurações / backup / conta ---------- */
 function openSettings() {
   applyThemeUI();
   const p = storage.getPrefs();
   $('prefConfidence').value = String(p.confidence);
   $('prefError').value = String(p.error);
-  $('appVersion').textContent = 'CronoAnálise — ' + APP_VERSION;
+  $('prefVibrate').checked = p.vibrate !== false;
+  $('appVersion').textContent = 'CronoAnálise — ' + APP_VERSION + ' · banco: ' +
+    (storage.getSyncMeta().mode === 'rows' ? 'um estudo por linha' : 'formato atual') +
+    ' · armazenamento: ' + (storage.getBackend() === 'idb' ? 'IndexedDB' : 'localStorage');
   openModal('settingsModal');
 }
 
@@ -280,37 +309,67 @@ async function importBackup(file) {
       restored++;
     }
   });
-  const merged = mergeStores(local, imported);
-  storage.saveStore(merged);
+  storage.saveStore(mergeStores(local, imported));
   sync.request(200);
-  if (isEditorView()) editor.applyExternalUpdate(); else renderDashboard();
-  showToast(restored + ' estudo(s) restaurado(s); os demais foram mesclados pela edição mais recente');
+  refreshViews();
+  showToast(restored + ' estudo(s) restaurado(s); os demais foram mesclados registro a registro');
+}
+
+async function confirmDeleteAccount() {
+  const typed = $('deleteConfirm').value.trim().toUpperCase();
+  const err = $('deleteError');
+  err.textContent = '';
+  if (typed !== 'EXCLUIR') { err.textContent = 'Digite EXCLUIR para confirmar.'; return; }
+  const btn = $('btnConfirmDelete');
+  btn.disabled = true;
+  try {
+    await deleteAccount();
+    const uid = activeUserId;
+    editor.close();
+    await storage.wipeUserData(uid);
+    closeModal();
+    showToast('Conta e dados excluídos', 4000);
+    await auth.signOut().catch(() => {});
+    exitApp();
+  } catch (e) {
+    err.textContent = e.message || String(e);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function openAdmin() {
-  if (!currentUser || currentUser.email !== ADMIN_EMAIL) { showToast('Acesso restrito'); return; }
+  if (!isAdmin) { showToast('Acesso restrito'); return; }
   openModal('adminModal');
   await loadAdmin();
 }
 
 async function loadAdmin() {
   const summary = $('adminSummary');
+  const thead = $('adminUsersHead');
   const tbody = $('adminUsersTable');
   summary.textContent = 'Carregando…';
   tbody.innerHTML = '';
-  const { data, error } = await listActivity();
-  if (error) {
-    summary.textContent = 'Erro ao carregar (verifique se a tabela crono_user_activity foi criada no Supabase): ' + error.message;
+  const res = await adminStats();
+  if (res.error) {
+    summary.textContent = 'Erro ao carregar (verifique se a tabela crono_user_activity foi criada no Supabase): ' + res.error.message;
     return;
   }
-  const rows = data || [];
-  summary.textContent = 'Total de usuários registrados: ' + rows.length;
+  const rows = res.rows;
+  const d = res.detailed;
+  thead.innerHTML = '<tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th>' +
+    (d ? '<th>Estudos</th><th>Registros</th><th>Compart.</th>' : '') + '</tr>';
+  const totals = rows.reduce((a, r) => ({ s: a.s + (Number(r.studies) || 0), r: a.r + (Number(r.records) || 0) }), { s: 0, r: 0 });
+  summary.textContent = 'Total de usuários registrados: ' + rows.length +
+    (d ? ' · ' + totals.s + ' estudos · ' + totals.r + ' registros' : ' · rode a migração 002 para ver estudos por usuário');
   tbody.innerHTML = rows.length ? rows.map(r =>
     '<tr><td>' + escapeHtml(r.email) + '</td>' +
     '<td>' + fmtDate(r.first_seen) + '</td>' +
     '<td>' + fmtDate(r.last_seen) + '</td>' +
-    '<td>' + (Number(r.login_count) || 0) + '</td></tr>'
-  ).join('') : '<tr><td colspan="4" class="empty">Nenhum usuário registrado ainda.</td></tr>';
+    '<td>' + (Number(r.login_count) || 0) + '</td>' +
+    (d ? '<td>' + (Number(r.studies) || 0) + '</td><td>' + (Number(r.records) || 0) + '</td><td>' + (Number(r.shares) || 0) + '</td>' : '') +
+    '</tr>'
+  ).join('') : '<tr><td colspan="7" class="empty">Nenhum usuário registrado ainda.</td></tr>';
 }
 
 /* ---------- Ações (delegação de eventos) ---------- */
@@ -319,8 +378,10 @@ const idOf = btn => {
   return el ? el.dataset.id : null;
 };
 
+const afterLeave = () => { if (isEditorView()) showDashboard(); else renderDashboard(); };
+
 const actions = {
-  'toggle-menu': () => toggleMenu(),
+  'toggle-menu': () => { updateShareButton(); toggleMenu(); },
   'back-dashboard': () => showDashboard(),
   'toggle-field': () => { setFieldMode(!document.body.classList.contains('field')); saveSession(); },
   'manual-save': () => {
@@ -330,7 +391,10 @@ const actions = {
   },
   'new-study': () => newStudyView(),
   'export-csv': () => editor.exportCSV(),
+  'export-xlsx': () => editor.exportXLSX(),
   'print': () => editor.printStudy(),
+  'share': () => { const c = editor.getCurrent(); if (c) openShare(c); },
+  'compare': () => openCompare(),
   'toggle-theme': () => toggleTheme(),
   'open-settings': () => openSettings(),
   'open-admin': () => openAdmin(),
@@ -341,24 +405,33 @@ const actions = {
   'close-modal': () => closeModal(),
   'export-backup': () => exportBackup(),
   'import-backup': () => $('backupFile').click(),
+  'delete-account': () => { $('deleteConfirm').value = ''; $('deleteError').textContent = ''; openModal('deleteAccountModal', { focus: 'deleteConfirm' }); },
+  'confirm-delete-account': () => confirmDeleteAccount(),
 
   'tab': btn => editor.showTab(btn.dataset.tab),
-  'delete-current': () => editor.deleteCurrent(),
-  'start': () => editor.startTimer(),
-  'pause': () => editor.pauseTimer(),
-  'reset': () => editor.resetTimer(),
-  'new-cycle': () => editor.newCycle(),
-  'undo': () => editor.undo(),
-  'qty': btn => editor.changeQty(Number(btn.dataset.delta)),
-  'mark': btn => editor.markStage(btn.dataset.id),
-  'remove-stage': btn => editor.removeStage(btn.dataset.id),
-  'edit-stage': btn => editor.openStageEdit(btn.dataset.id),
-  'toggle-exclude': btn => editor.toggleExclude(idOf(btn)),
-  'delete-record': btn => editor.deleteRecord(idOf(btn)),
+  'load-versions': () => historyUI.loadVersions(),
+  'delete-current': () => editor.deleteCurrent(id => leaveShare(id, afterLeave)),
+  'start': () => timer.start(),
+  'pause': () => timer.pause(),
+  'reset': () => timer.reset(),
+  'new-cycle': () => timer.newCycle(),
+  'undo': () => timer.undo(),
+  'note-last': () => timer.noteLast(),
+  'qty': btn => timer.changeQty(Number(btn.dataset.delta)),
+  'mark': btn => timer.markStage(btn.dataset.id),
+  'interruption': () => timer.markInterruption(),
+  'remove-stage': btn => stagesUI.remove(btn.dataset.id),
+  'edit-stage': btn => stagesUI.openEdit(btn.dataset.id),
+  'stage-back': () => stagesUI.move(-1),
+  'stage-fwd': () => stagesUI.move(1),
+  'toggle-exclude': btn => recordsUI.toggleExclude(idOf(btn)),
+  'delete-record': btn => recordsUI.remove(idOf(btn)),
 
   'open-study': btn => openStudyView(idOf(btn)),
+  'template-study': btn => newStudyView(idOf(btn)),
   'duplicate-study': btn => duplicateStudy(idOf(btn)),
-  'delete-study': btn => deleteStudy(idOf(btn))
+  'delete-study': btn => deleteStudy(idOf(btn)),
+  'leave-study': btn => leaveShare(idOf(btn), afterLeave)
 };
 
 function onClick(e) {
@@ -373,23 +446,25 @@ function onClick(e) {
 
 /* ---------- Atalhos de teclado (editor) ---------- */
 function onKeydown(e) {
-  if (!isEditorView() || isModalOpen() || !editor.getCurrent() || e.defaultPrevented) return;
+  if (!isEditorView() || isModalOpen() || !editor.getCurrent() || e.defaultPrevented || editor.isReadonly()) return;
   if (!$('editorHistory').hidden) return;
   const t = e.target;
   if (t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
     e.preventDefault();
-    editor.undo();
+    timer.undo();
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === ' ' || e.code === 'Space') {
     e.preventDefault(); // evita também o "clique" do botão em foco
-    if (!e.repeat) editor.toggleTimer();
+    if (!e.repeat) timer.toggle();
   } else if (/^[1-9]$/.test(e.key)) {
-    if (!e.repeat) editor.markStageByIndex(Number(e.key) - 1);
+    if (!e.repeat) timer.markStageByIndex(Number(e.key) - 1);
+  } else if (e.key === '0') {
+    if (!e.repeat) timer.markInterruption();
   } else if (e.key === 'n' || e.key === 'N') {
-    if (!e.repeat) editor.newCycle();
+    if (!e.repeat) timer.newCycle();
   }
 }
 
@@ -399,7 +474,7 @@ function boot() {
   initMenu();
   applyThemeUI();
   editor.labels();
-  storage.setWriteErrorHandler(() => showToast('⚠ Armazenamento do navegador cheio — baixe um backup em Configurações', 5000));
+  storage.setWriteErrorHandler(() => showToast('⚠ Não foi possível gravar neste aparelho (armazenamento cheio?) — baixe um backup em Configurações', 6000));
 
   editor.initEditor({
     requestSync: () => { sync.request(); },
@@ -409,18 +484,21 @@ function boot() {
     requestSync: () => sync.request(),
     onForget: id => editor.forgetStudy(id)
   });
+  initShare({ pushStudyNow: id => sync.pushStudyNow(id) });
+  initCompare();
 
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', onKeydown);
 
   // trocar de estudo pela lista do editor também atualiza a sessão salva
-  $('studyList').addEventListener('change', () => setTimeout(saveSession, 0));
+  $('studyList').addEventListener('change', () => setTimeout(() => { saveSession(); updateShareButton(); }, 0));
 
   $('authForm').addEventListener('submit', e => { e.preventDefault(); doSignIn(e.submitter || null); });
   $('recoveryForm').addEventListener('submit', e => { e.preventDefault(); saveNewPassword(); });
   $('settingsThemeToggle').addEventListener('change', () => toggleTheme());
   $('prefConfidence').addEventListener('change', e => { storage.setPrefs({ confidence: Number(e.target.value) }); editor.refresh(); });
   $('prefError').addEventListener('change', e => { storage.setPrefs({ error: Number(e.target.value) }); editor.refresh(); });
+  $('prefVibrate').addEventListener('change', e => storage.setPrefs({ vibrate: e.target.checked }));
   $('backupFile').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
     e.target.value = '';
@@ -441,9 +519,10 @@ function boot() {
   window.addEventListener('offline', () => { if (activeUserId) setSyncStatus('offline'); });
 
   // Outra aba do app alterou os dados
+  storage.onExternalChange(() => { if (activeUserId) refreshViews(); });
   window.addEventListener('storage', e => {
-    if (!activeUserId || !storage.isStoreKey(e.key)) return;
-    if (isEditorView()) editor.applyExternalUpdate(); else renderDashboard();
+    if (!activeUserId) return;
+    if (storage.handleStorageEvent(e) || storage.isTimerKey(e.key)) refreshViews();
   });
 
   if (!sb) {
@@ -454,7 +533,7 @@ function boot() {
     setTimeout(() => handleAuthEvent(event, session), 0);
   });
   // Rede de segurança: nunca deixar a tela de carregamento presa
-  setTimeout(() => document.body.classList.remove('booting'), 10000);
+  setTimeout(() => document.body.classList.remove('booting'), 12000);
 
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', () => {

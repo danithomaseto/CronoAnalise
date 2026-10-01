@@ -30,7 +30,7 @@ export function renderDashboard() {
   let list = studies;
   if (q) {
     list = list.filter(s =>
-      [s.name, s.process, s.operator, s.observer].some(v => (v || '').toLowerCase().includes(q)));
+      [s.name, s.process, s.operator, s.observer, storage.getAccess(s.id).ownerEmail].some(v => (v || '').toLowerCase().includes(q)));
   }
   list = list.slice().sort((a, b) => {
     if (sort === 'az') return a.name.localeCompare(b.name, 'pt-BR');
@@ -42,7 +42,7 @@ export function renderDashboard() {
   let totalRecords = 0, totalTime = 0, lastModified = null;
   studies.forEach(s => {
     totalRecords += s.records.length;
-    totalTime += s.records.reduce((a, r) => a + (Number(r.time) || 0), 0);
+    totalTime += s.records.reduce((a, r) => a + (r.interruption ? 0 : Number(r.time) || 0), 0);
     if (!lastModified || ts(s.updatedAt) > ts(lastModified.updatedAt)) lastModified = s;
   });
   $('dashKpis').innerHTML =
@@ -50,6 +50,7 @@ export function renderDashboard() {
     kpi('Total de Registros', String(totalRecords)) +
     kpi('Tempo Total Registrado', toBR(totalTime) + 's') +
     kpi('Último Estudo Modificado', lastModified ? escapeHtml(lastModified.name) : '—', true);
+  $('btnCompare').disabled = studies.length < 2;
 
   const wrap = $('studyCards');
   if (!list.length) {
@@ -58,11 +59,16 @@ export function renderDashboard() {
   }
   wrap.innerHTML = list.map(s => {
     const t = timers[s.id];
+    const acc = storage.getAccess(s.id);
+    const owner = acc.role === 'owner';
     let badge = '';
     if (t && t.running) badge = '<span class="timer-badge" title="Cronômetro rodando">⏱ Em andamento</span>';
     else if (t && !T.isIdle(t)) badge = '<span class="timer-badge paused" title="Cronômetro pausado">⏸ Pausado</span>';
+    const shared = owner ? '' :
+      '<span class="share-badge">👥 ' + (acc.role === 'viewer' ? 'Somente leitura' : 'Pode editar') + ' · ' + escapeHtml(acc.ownerEmail || 'compartilhado') + '</span>';
     return '<div class="study-card" data-id="' + escapeHtml(s.id) + '">' +
       '<div class="study-card-head"><b>' + escapeHtml(s.name) + '</b>' + badge + '</div>' +
+      shared +
       '<div class="study-card-meta">' +
         (s.process ? '<span>' + FIELD_LABELS.process + ': ' + escapeHtml(s.process) + '</span>' : '') +
         (s.operator ? '<span>' + FIELD_LABELS.operator + ': ' + escapeHtml(s.operator) + '</span>' : '') +
@@ -73,8 +79,11 @@ export function renderDashboard() {
       '</div>' +
       '<div class="study-card-actions">' +
         '<button type="button" class="cta" data-action="open-study">Abrir</button>' +
-        '<button type="button" data-action="duplicate-study">Duplicar</button>' +
-        '<button type="button" class="danger" data-action="delete-study">Excluir</button>' +
+        '<button type="button" data-action="template-study" title="Novo estudo com as mesmas etapas e parâmetros, sem os registros">Modelo</button>' +
+        '<button type="button" data-action="duplicate-study" title="Cópia completa, com os registros">Duplicar</button>' +
+        (owner
+          ? '<button type="button" class="danger" data-action="delete-study">Excluir</button>'
+          : '<button type="button" class="danger" data-action="leave-study">Sair</button>') +
       '</div>' +
     '</div>';
   }).join('');
@@ -92,6 +101,9 @@ export function duplicateStudy(id) {
   clone.id = uid('study');
   clone.createdAt = now;
   clone.updatedAt = now;
+  delete clone.fieldTs;
+  delete clone.deletedRecords;
+  delete clone.deletedStages;
   clone.history = [{ ts: now, text: 'Estudo duplicado de "' + s.name + '"' }];
   clone.name = uniqueCopyName(s.name, storage.listStudies().map(x => x.name));
   storage.putStudy(clone);

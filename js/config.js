@@ -2,7 +2,7 @@
    A chave "publishable" do Supabase é pública por natureza: a segurança dos dados
    vem das políticas RLS (ver supabase/schema.sql). */
 
-export const APP_VERSION = 'Beta 9';
+export const APP_VERSION = 'Beta 10';
 
 export const SUPABASE_URL = 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
@@ -31,5 +31,6 @@ export const FIELD_LABELS = {
 /* Parâmetros estatísticos padrão (ajustáveis em Configurações). */
 export const DEFAULT_PREFS = {
   confidence: 95, // %
-  error: 5        // erro relativo aceitável, %
+  error: 5,       // erro relativo aceitável, %
+  vibrate: true   // vibrar ao marcar etapa (celular)
 };

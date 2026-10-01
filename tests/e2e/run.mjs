@@ -758,6 +758,378 @@ T('duas abas no mesmo navegador; ritmo/tolerâncias; etapa de produção; confia
   await ctx.close();
 });
 
+
+/* ================================================================ */
+async function setupStudy(page, name, stages) {
+  await page.click('.dash-hero [data-action=new-study]');
+  await page.fill('#studyName', name);
+  for (const [n, t] of stages) {
+    await page.fill('#stageName', n);
+    await page.selectOption('#stageType', t);
+    await page.click('#stageForm button[type=submit]');
+  }
+}
+
+T('etapas reordenáveis, modelo, interrupção, observações, gráficos, takt, Excel e comparação', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'A');
+  await login(page, 'ana@x.com', 'segredo1');
+  await setupStudy(page, 'Antes', [['Pegar', 'VA'], ['Andar', 'Transporte'], ['Conferir', 'NVA']]);
+
+  // reordenar: "Conferir" para a 1ª posição
+  await page.click('.stage-wrap:nth-child(3) .stage-edit');
+  check((await page.textContent('#stagePosLabel')) === 'Posição 3 de 3', 'modal mostra a posição');
+  await page.click('#btnStageBack');
+  await page.click('#btnStageBack');
+  check(await page.isDisabled('#btnStageBack'), 'não passa da 1ª posição');
+  await page.keyboard.press('Escape');
+  const order = await page.$$eval('.stage-wrap .stage-name', els => els.map(e => e.textContent));
+  check(order.join('|') === 'Conferir|Pegar|Andar', 'ordem das etapas alterada: ' + order.join('|'));
+
+  // cronometrar 4 ciclos com interrupção e observação
+  await page.click('#btnStart');
+  for (let c = 0; c < 4; c++) {
+    for (let i = 1; i <= 3; i++) { await sleep(120); await page.click(`.stage-wrap:nth-child(${i}) .stage`); }
+    if (c === 1) {
+      await sleep(150);
+      await page.locator('body').click({ position: { x: 5, y: 300 } });
+      await page.keyboard.press('0'); // atalho de interrupção
+      page.once('dialog', d => d.accept('falta de caixa'));
+      page.removeAllListeners('dialog');
+      page.once('dialog', d => d.accept('falta de caixa'));
+      await page.click('#btnNote');
+      await sleep(100);
+      page.on('dialog', d => { errors.push('dialog inesperado: ' + d.message()); d.dismiss(); });
+    }
+    await page.click('[data-action=new-cycle]');
+  }
+  const intRow = page.locator('#recordsTable tr.interruption');
+  check(await intRow.count() === 1, 'interrupção registrada');
+  check((await intRow.locator('td.note-cell').innerText()) === 'falta de caixa', 'observação anotada na interrupção');
+  check((await page.textContent('#stats')).includes('Interrupções'), 'KPI de interrupções');
+  // observação editada direto na tabela
+  const note = page.locator('#recordsTable tr[data-id] >> nth=0').locator('td.note-cell');
+  await note.click();
+  await page.keyboard.type('operador novo');
+  await page.locator('#studyName').click();
+  check((await note.innerText()) === 'operador novo', 'observação editada na tabela');
+
+  // takt
+  await page.click('#stdParams summary');
+  await page.fill('#demand', '480');
+  await page.fill('#availableMin', '480');
+  await page.locator('#availableMin').blur();
+  const statsText = await page.textContent('#stats');
+  check(statsText.includes('Takt Time') && statsText.includes('Operadores Necessários'), 'KPIs de takt time');
+  check(statsText.includes('dentro do takt'), 'status do takt com ícone e texto');
+
+  // gráficos
+  check(await page.locator('#charts .chart-card').count() === 3, '3 gráficos (Yamazumi, Pareto, tempo de ciclo)');
+  const ymarks = await page.locator('#charts .chart-card').nth(0).locator('.mark').evaluateAll(els => els.map(e => e.getAttribute('data-tip')));
+  check(ymarks.length === 12, 'Yamazumi: 3 segmentos × 4 ciclos (' + ymarks.length + ') ' + (ymarks.length === 12 ? '' : JSON.stringify(ymarks)));
+  check((await page.locator('#charts .chart-card').nth(0).textContent()).includes('Takt do ciclo'), 'linha de takt no Yamazumi');
+  await page.locator('#charts .chart-card').nth(1).locator('.mark').first().hover();
+  check(!(await page.isHidden('#chartTip')) && (await page.textContent('#chartTip')).includes('% do tempo'), 'tooltip no Pareto');
+  await page.locator('#charts .chart-card').nth(2).locator('.hit').nth(1).hover();
+  check((await page.textContent('#chartTip')).startsWith('Ciclo 2:'), 'tooltip no tempo de ciclo');
+  check(await page.locator('#charts .crosshair[visibility=visible]').count() === 1, 'crosshair acompanha o ponteiro');
+  await page.locator('#charts .chart-card').nth(0).locator('.mark').first().focus();
+  check(!(await page.isHidden('#chartTip')), 'tooltip também pelo teclado (foco)');
+  await page.screenshot({ path: OUT + 'charts.png', fullPage: true });
+
+  // Excel
+  const dl = page.waitForEvent('download');
+  await page.click('[data-action=toggle-menu]');
+  await page.click('#menuDropdown [data-action=export-xlsx]');
+  const d = await dl;
+  check(d.suggestedFilename() === 'Antes.xlsx', 'arquivo .xlsx: ' + d.suggestedFilename());
+  const bytes = fs.readFileSync(await d.path());
+  check(bytes[0] === 0x50 && bytes[1] === 0x4b, 'é um ZIP (formato .xlsx)');
+  fs.copyFileSync(await d.path(), OUT + 'Antes.xlsx');
+
+  // modelo: novo estudo com as mesmas etapas, sem registros
+  await page.click('[data-action=toggle-menu]');
+  await page.click('#menuDropdown [data-action=back-dashboard]');
+  await page.click('.study-card [data-action=template-study]');
+  check((await page.inputValue('#studyName')) === 'Antes (novo)', 'estudo criado a partir do modelo');
+  const tplStages = await page.$$eval('.stage-wrap .stage-name', els => els.map(e => e.textContent));
+  check(tplStages.join('|') === 'Conferir|Pegar|Andar', 'modelo copia as etapas na ordem');
+  check((await page.$$('#recordsTable tr[data-id]')).length === 0, 'modelo não copia registros');
+  check((await page.inputValue('#demand')) === '480', 'modelo copia os parâmetros de takt');
+  await page.fill('#studyName', 'Depois');
+  await page.locator('#studyName').blur();
+  await page.click('#btnStart');
+  for (let c = 0; c < 3; c++) {
+    for (let i = 1; i <= 3; i++) { await sleep(60); await page.click(`.stage-wrap:nth-child(${i}) .stage`); }
+    await page.click('[data-action=new-cycle]');
+  }
+
+  // comparação antes × depois
+  await page.click('[data-action=toggle-menu]');
+  await page.click('#menuDropdown [data-action=back-dashboard]');
+  await page.click('#btnCompare');
+  await page.selectOption('#compareA', { label: 'Antes' });
+  await page.selectOption('#compareB', { label: 'Depois' });
+  const comp = await page.textContent('#compareResult');
+  check(comp.includes('Tempo médio de ciclo') && comp.includes('melhor'), 'comparação mostra variação com texto "melhor"/"pior"');
+  check(await page.locator('#compareResult .comp-bar').count() === 2, 'barras de composição dos dois estudos');
+  check(await page.locator('#compareResult tbody tr').count() >= 3 + 7, 'tabelas de indicadores e etapas');
+  await page.screenshot({ path: OUT + 'compare.png' });
+  await page.keyboard.press('Escape');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+/* ================================================================ */
+T('mesmo estudo em dois aparelhos: marcações de um + observações do outro se somam', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctxA = await newCtx(fake), ctxB = await newCtx(fake);
+  const A = await ctxA.newPage(), B = await ctxB.newPage();
+  const eA = watch(A, 'A'), eB = watch(B, 'B');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Juntos', [['E1', 'VA']]);
+  await sleep(1500);
+  await login(B, 'ana@x.com', 'segredo1');
+  await B.click('.study-card [data-action=open-study]');
+  // A cronometra; B escreve observações e renomeia a etapa — sem sincronizar entre si no meio
+  await A.click('#btnStart');
+  for (let i = 0; i < 3; i++) { await sleep(400); await A.click('.stage'); }
+  await B.fill('#notes', 'anotado no aparelho B');
+  await B.locator('#notes').blur();
+  await sleep(2500);
+  await A.evaluate(() => window.dispatchEvent(new Event('online')));
+  await B.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(2500);
+  const cloud = Object.values(fake.studiesOf('ana@x.com').studies)[0];
+  check(cloud.records.length === 3, 'nuvem tem as 3 marcações de A: ' + cloud.records.length);
+  check(cloud.notes === 'anotado no aparelho B', 'nuvem tem a observação de B');
+  check((await A.inputValue('#notes')) === 'anotado no aparelho B', 'A recebeu a observação de B');
+  check((await B.$$('#recordsTable tr[data-id]')).length === 3, 'B recebeu as marcações de A');
+  check(eA.length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+/* ================================================================ */
+T('banco novo (um estudo por linha): migração automática, incremental, conflito e exclusão', async () => {
+  const fake = createFakeSupabase({ versionThrottleMs: 0 });
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctxA = await newCtx(fake);
+  const A = await ctxA.newPage();
+  const eA = watch(A, 'A');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Antigo 1', [['E1', 'VA']]);
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#menuDropdown [data-action=back-dashboard]');
+  await setupStudy(A, 'Antigo 2', [['E1', 'VA']]);
+  await sleep(1500);
+  check(fake.rows().length === 0 && Object.keys(fake.studiesOf('ana@x.com').studies).length === 2, 'antes da migração: tudo na tabela antiga');
+
+  // administrador roda a migração 002
+  fake.enableV2();
+  await A.reload();
+  await A.waitForSelector('body.authed');
+  await sleep(2500);
+  check(fake.rows().length === 2, 'estudos copiados para crono_study: ' + fake.rows().length);
+  check(Object.keys(fake.studiesOf('ana@x.com').studies).length === 2, 'tabela antiga mantida intacta (backup)');
+  const blobBefore = fake.rowOf('ana@x.com').updated_at;
+
+  // segundo aparelho, modo novo
+  const ctxB = await newCtx(fake);
+  const B = await ctxB.newPage();
+  const eB = watch(B, 'B');
+  await login(B, 'ana@x.com', 'segredo1');
+  await sleep(1200);
+  check((await B.$$('.study-card')).length === 2, 'B vê os 2 estudos pelas linhas novas');
+
+  // edição concorrente do mesmo estudo: A marca, B edita a observação
+  if (await A.isVisible('#editorView')) { await A.click('[data-action=toggle-menu]'); await A.click('#menuDropdown [data-action=back-dashboard]'); }
+  await A.click('.study-card:has-text("Antigo 1") [data-action=open-study]');
+  await B.click('.study-card:has-text("Antigo 1") [data-action=open-study]');
+  await A.click('#btnStart');
+  await sleep(200);
+  await A.click('.stage');
+  await B.fill('#notes', 'nota B');
+  await B.locator('#notes').blur();
+  await sleep(2500);
+  await A.evaluate(() => window.dispatchEvent(new Event('online')));
+  await B.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(2500);
+  const row = fake.rows().find(r => r.data.name === 'Antigo 1');
+  check(row.data.records.length === 1 && row.data.notes === 'nota B', 'linha do estudo tem a marcação de A e a nota de B');
+  const conflicts = fake.log.filter(l => l.method === 'PATCH' && l.path.startsWith('/rest/v1/crono_study?') && l.matched === 0).length;
+  check(conflicts >= 1, 'conflito detectado e resolvido por estudo (' + conflicts + ')');
+  check(fake.rowOf('ana@x.com').updated_at === blobBefore, 'modo novo não grava mais na tabela antiga');
+  const incremental = fake.log.filter(l => l.method === 'GET' && /crono_study\?.*updated_at=gt\./.test(l.path)).length;
+  check(incremental >= 1, 'busca incremental (só o que mudou): ' + incremental);
+
+  // exclusão propaga (deleted_at)
+  await B.click('[data-action=toggle-menu]');
+  await B.click('#menuDropdown [data-action=back-dashboard]');
+  await acceptNextDialog(B);
+  await B.click('.study-card:has-text("Antigo 2") [data-action=delete-study]');
+  await sleep(1500);
+  check(!!fake.rows().find(r => r.data.name === 'Antigo 2').deleted_at, 'exclusão marcada na linha (deleted_at)');
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#menuDropdown [data-action=back-dashboard]');
+  await A.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(1500);
+  check(!(await A.textContent('#studyCards')).includes('Antigo 2'), 'exclusão chegou em A');
+
+  // versões no servidor + restaurar
+  await A.click('.study-card:has-text("Antigo 1") [data-action=open-study]');
+  await A.fill('#notes', 'versão ruim');
+  await A.locator('#notes').blur();
+  await sleep(1500);
+  await A.click('#tabHist');
+  await A.click('[data-action=load-versions]');
+  await A.waitForSelector('#versionsList .version-btn');
+  const nv = await A.locator('#versionsList .version-btn').count();
+  check(nv >= 1, 'versões anteriores listadas: ' + nv);
+  await acceptNextDialog(A);
+  await A.locator('#versionsList .version-btn').first().click();
+  await sleep(500);
+  await A.click('#tabCrono');
+  check((await A.inputValue('#notes')) === 'nota B', 'versão restaurada (observação anterior voltou)');
+  check(eA.filter(e => !/409|Conflict/.test(e)).length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+/* ================================================================ */
+T('compartilhamento: leitura, edição, sair e revogar', async () => {
+  const fake = createFakeSupabase({ v2: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  fake.addUser('bia@x.com', 'segredo2');
+  const ctxA = await newCtx(fake), ctxB = await newCtx(fake);
+  const A = await ctxA.newPage(), B = await ctxB.newPage();
+  const eA = watch(A, 'A'), eB = watch(B, 'B');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Do time', [['E1', 'VA'], ['E2', 'NVA']]);
+  await A.click('#btnStart');
+  await sleep(200);
+  await A.click('.stage-wrap:nth-child(1) .stage');
+  await sleep(1500);
+  await A.click('[data-action=toggle-menu]');
+  check(await A.isVisible('#btnShare'), 'botão Compartilhar para o dono');
+  await A.click('#btnShare');
+  await A.fill('#shareEmail', 'BIA@x.com');
+  await A.selectOption('#shareRole', 'viewer');
+  await A.click('#shareForm button[type=submit]');
+  await A.waitForSelector('#shareList table');
+  check(fake.shares().length === 1 && fake.shares()[0].email === 'bia@x.com', 'convite gravado (e-mail normalizado)');
+  await A.keyboard.press('Escape');
+
+  await login(B, 'bia@x.com', 'segredo2');
+  await sleep(1200);
+  check((await B.textContent('.study-card')).includes('Somente leitura'), 'card mostra "Somente leitura"');
+  await B.click('.study-card [data-action=open-study]');
+  check(await B.evaluate(() => document.body.classList.contains('readonly')), 'editor em modo somente leitura');
+  check(!(await B.isVisible('.timer-controls')) && !(await B.isVisible('#stageForm')), 'controles de edição escondidos');
+  check(await B.isDisabled('.stage-wrap .stage'), 'etapas não podem ser marcadas');
+  check(await B.locator('#recordsTable [contenteditable]').count() === 0, 'tabela sem edição');
+  await B.click('[data-action=toggle-menu]');
+  check(!(await B.isVisible('#btnShare')), 'convidado não compartilha');
+  await B.keyboard.press('Escape');
+
+  // dono muda para "pode editar"
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#btnShare');
+  await A.waitForSelector('#shareList select');
+  await A.selectOption('#shareList select', 'editor');
+  await sleep(300);
+  await A.keyboard.press('Escape');
+  await B.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(1500);
+  check(!(await B.evaluate(() => document.body.classList.contains('readonly'))), 'convidado agora pode editar');
+  await B.fill('#notes', 'editado pela Bia');
+  await B.locator('#notes').blur();
+  await sleep(1500);
+  await A.evaluate(() => window.dispatchEvent(new Event('online')));
+  await sleep(1500);
+  check((await A.inputValue('#notes')) === 'editado pela Bia', 'dono recebeu a edição da convidada');
+  check((await B.textContent('#btnDeleteCurrent')) === 'Sair do compartilhamento', 'convidado não exclui: só sai');
+
+  // convidado sai
+  await B.click('[data-action=toggle-menu]');
+  await B.click('#menuDropdown [data-action=back-dashboard]');
+  await acceptNextDialog(B);
+  await B.click('.study-card [data-action=leave-study]');
+  await sleep(500);
+  check((await B.$$('.study-card')).length === 0 && fake.shares().length === 0, 'convidado saiu do estudo');
+  check(!!fake.rows()[0] && !fake.rows()[0].deleted_at, 'estudo continua com o dono');
+
+  // revogação: dono compartilha de novo e depois remove → some na próxima busca completa
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#btnShare');
+  await A.fill('#shareEmail', 'bia@x.com');
+  await A.click('#shareForm button[type=submit]');
+  await A.waitForSelector('#shareList table');
+  await B.reload(); await B.waitForSelector('body.authed'); await sleep(1500);
+  check((await B.$$('.study-card')).length === 1, 'compartilhado de novo');
+  await acceptNextDialog(A);
+  await A.click('#shareList [data-unshare]');
+  await sleep(500);
+  await A.keyboard.press('Escape');
+  await B.reload(); await B.waitForSelector('body.authed'); await sleep(1500);
+  check((await B.$$('.study-card')).length === 0, 'acesso revogado: estudo some do convidado');
+  check(eA.length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+/* ================================================================ */
+T('admin com estatísticas, IndexedDB e excluir conta', async () => {
+  const fake = createFakeSupabase({ v2: true, rpcEnabled: true });
+  fake.addUser('daniel.thomaseto@dhl.com', 'admin123');
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctxA = await newCtx(fake);
+  const A = await ctxA.newPage();
+  const eA = watch(A, 'A');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Da Ana', [['E1', 'VA']]);
+  await A.click('#btnStart'); await sleep(200); await A.click('.stage');
+  await sleep(1500);
+  // dados ficam no IndexedDB
+  const idb = await A.evaluate(async () => new Promise(res => {
+    const r = indexedDB.open('cronoanalise-' + JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('sb-')))).user.id);
+    r.onsuccess = () => { const t = r.result.transaction('studies').objectStore('studies').getAll(); t.onsuccess = () => res(t.result.map(s => s.name)); };
+  }));
+  check(idb.includes('Da Ana'), 'estudo gravado no IndexedDB');
+  check(!(await A.evaluate(() => Object.keys(localStorage).some(k => k.endsWith(':store')))), 'store grande não fica mais no localStorage');
+
+  const ctxD = await newCtx(fake);
+  const D = await ctxD.newPage();
+  const eD = watch(D, 'admin');
+  await login(D, 'daniel.thomaseto@dhl.com', 'admin123');
+  await sleep(800);
+  await D.click('[data-action=toggle-menu]');
+  await D.click('#btnAdmin');
+  await D.waitForFunction(() => document.querySelectorAll('#adminUsersTable tr').length === 2);
+  const headers = await D.$$eval('#adminUsersHead th', ths => ths.map(t => t.textContent));
+  check(headers.includes('Estudos') && headers.includes('Registros'), 'colunas de estatísticas por usuário');
+  const anaRow = await D.$eval('#adminUsersTable', tb => [...tb.querySelectorAll('tr')].find(tr => tr.textContent.includes('ana@x.com')).textContent);
+  check(/1\s*1\s*0$/.test(anaRow.replace(/\s+/g, ' ').trim().split(' ').slice(-3).join(' ')) || anaRow.includes('11'), 'Ana: 1 estudo, 1 registro: ' + anaRow);
+  await D.keyboard.press('Escape');
+
+  // Ana exclui a conta
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#menuDropdown [data-action=back-dashboard]');
+  await A.click('[data-action=toggle-menu]');
+  await A.click('#menuDropdown [data-action=open-settings]');
+  await A.click('[data-action=delete-account]');
+  await A.fill('#deleteConfirm', 'excluir');
+  await A.click('#btnConfirmDelete');
+  await A.waitForSelector('#authOverlay', { state: 'visible', timeout: 8000 });
+  check(!fake.hasUser('ana@x.com') && fake.rows().length === 0, 'conta e estudos apagados no servidor');
+  await sleep(500);
+  const left = await A.evaluate(async () => (await indexedDB.databases()).map(d => d.name).filter(n => n.startsWith('cronoanalise-')));
+  check(left.length === 0, 'dados apagados deste aparelho');
+  check(eA.length === 0 && eD.length === 0, 'sem erros: ' + [...eA, ...eD].join(' || '));
+  await ctxA.close(); await ctxD.close();
+});
+
 /* ================================================================ */
 for (const t of tests) {
   if (only && !only.test(t.name)) continue;

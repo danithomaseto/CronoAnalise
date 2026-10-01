@@ -39,7 +39,9 @@ export function computeStats(study, prefs = {}) {
   const e = errorPct / 100;
 
   const records = study.records || [];
-  const active = records.filter(r => !r.excluded);
+  // Interrupções (elementos estranhos) e registros ignorados ficam fora dos cálculos
+  const interruptions = records.filter(r => r.interruption);
+  const active = records.filter(r => !r.excluded && !r.interruption);
   const total = active.reduce((a, r) => a + (Number(r.time) || 0), 0);
 
   // Quantidade: se alguma etapa estiver marcada como "conta para produção",
@@ -109,9 +111,58 @@ export function computeStats(study, prefs = {}) {
     });
   });
 
+  // Série por ciclo (composição por tipo) e estatística do tempo de ciclo
+  const cycleMap = new Map();
+  active.forEach(r => {
+    if (!cycleMap.has(r.cycle)) cycleMap.set(r.cycle, { cycle: r.cycle, total: 0, byType: {}, qty: 0 });
+    const c = cycleMap.get(r.cycle);
+    const t = Number(r.time) || 0;
+    c.total += t;
+    c.byType[r.type] = (c.byType[r.type] || 0) + t;
+    if (!usesOutputStages || outputIds.has(r.stageId)) c.qty += Number(r.qty) || 0;
+  });
+  const cycles = [...cycleMap.values()].sort((a, b) => a.cycle - b.cycle);
+  const cycleTotals = cycles.map(c => c.total);
+  const cycleSd = sampleStdDev(cycleTotals, avgCycle);
+  const outlierCycles = new Set();
+  if (cycles.length >= 5 && cycleSd > 0) cycles.forEach(c => { if (Math.abs(c.total - avgCycle) > 2 * cycleSd) outlierCycles.add(c.cycle); });
+
+  // Pareto: etapas por tempo total, com participação e acumulado
+  let acc = 0;
+  const pareto = summary.slice().sort((a, b) => b.total - a.total).map(s => {
+    const share = total > 0 ? s.total / total * 100 : 0;
+    acc += share;
+    return { name: s.name, type: s.type, total: s.total, share, cumulative: Math.min(100, acc) };
+  });
+  const vitalFew = pareto.findIndex(p => p.cumulative >= 80 - 1e-9) + 1;
+
+  // Takt time
+  const demand = Number(study.demand) || 0;
+  const availableMin = Number(study.availableMin) || 0;
+  const takt = demand > 0 && availableMin > 0 ? availableMin * 60 / demand : 0;
+  const perUnit = qtyTotal > 0 ? total / qtyTotal : 0;
+  const perUnitStd = perUnit * factor;
+  const unitsPerCycle = cycleCount ? qtyTotal / cycleCount : 0;
+  const perUnitRef = rating !== 100 || allowance !== 0 ? perUnitStd : perUnit;
+
   return {
     total,
     qtyTotal,
+    cycles,
+    cycleSd,
+    outlierCycles,
+    pareto,
+    vitalFew,
+    takt,
+    perUnit,
+    perUnitStd,
+    perUnitRef,
+    unitsPerCycle,
+    taktPerCycle: takt * unitsPerCycle,
+    operatorsNeeded: takt > 0 ? perUnitRef / takt : 0,
+    withinTakt: takt > 0 && perUnitRef > 0 ? perUnitRef <= takt : null,
+    interruptionCount: interruptions.length,
+    interruptionTime: interruptions.reduce((a, r) => a + (Number(r.time) || 0), 0),
     usesOutputStages,
     productivity,
     byType,
@@ -124,12 +175,16 @@ export function computeStats(study, prefs = {}) {
     hasStdParams: rating !== 100 || allowance !== 0,
     summary,
     outliers,
-    excludedCount: records.length - active.length,
+    excludedCount: records.filter(r => r.excluded && !r.interruption).length,
     confidence,
     errorPct
   };
 }
 
 export function countCycles(study) {
-  return new Set((study.records || []).map(r => r.cycle)).size;
+  return new Set((study.records || []).filter(r => !r.interruption).map(r => r.cycle)).size;
 }
+
+/* Ordem dos tipos nos gráficos empilhados: escolhida para que tipos vizinhos
+   continuem distinguíveis para daltônicos (validado). */
+export const CHART_TYPE_ORDER = ['VA', 'NVA', 'Transporte', 'Espera'];

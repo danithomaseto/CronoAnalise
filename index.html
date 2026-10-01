@@ -52,8 +52,10 @@
       <button type="button" class="view-editor-only" id="btnField" data-action="toggle-field">Modo Campo</button>
       <button type="button" class="view-editor-only" data-action="manual-save">Salvar</button>
       <button type="button" data-action="new-study">Novo Estudo</button>
+      <button type="button" class="view-editor-only" data-action="export-xlsx">Exportar Excel (.xlsx)</button>
       <button type="button" class="view-editor-only" data-action="export-csv">Exportar CSV</button>
-      <button type="button" class="view-editor-only" data-action="print">Imprimir / PDF</button>
+      <button type="button" class="view-editor-only" data-action="print">Relatório / PDF</button>
+      <button type="button" class="view-editor-only" id="btnShare" data-action="share" hidden>👥 Compartilhar</button>
       <button type="button" id="btnTheme" data-action="toggle-theme">🌙 Tema Escuro</button>
       <button type="button" data-action="open-settings">⚙ Configurações</button>
       <button type="button" id="btnAdmin" data-action="open-admin" hidden>👤 Administração</button>
@@ -78,6 +80,7 @@
     <h2>Estudos Recentes</h2>
     <div class="dash-toolbar">
       <input id="dashSearch" type="search" placeholder="Pesquisar estudo..." aria-label="Pesquisar estudo">
+      <button type="button" id="btnCompare" data-action="compare" title="Comparar dois estudos (antes × depois)">⚖ Comparar</button>
       <select id="dashSort" aria-label="Ordenar estudos">
         <option value="recent">Mais recente</option>
         <option value="oldest">Mais antigo</option>
@@ -102,7 +105,7 @@
 
   <div id="editorMain">
 
-  <h1 class="print-header" id="printTitle"></h1>
+  <div class="print-header"><h1 id="printTitle"></h1><p id="printDate"></p></div>
 
   <section class="panel" data-field-hide>
     <h2>Estudo</h2>
@@ -113,16 +116,20 @@
       <label><span data-label="observer">Champion OMS</span><input id="observer" data-field="observer" placeholder="Champion OMS" autocomplete="off"></label>
     </div>
     <details class="std-params" id="stdParams">
-      <summary>Parâmetros de tempo padrão (opcional)</summary>
+      <summary>Parâmetros: tempo padrão e takt time (opcional)</summary>
       <div class="form-grid">
         <label>Fator de ritmo (%)<input id="rating" data-field="rating" inputmode="decimal" placeholder="100" autocomplete="off"></label>
         <label>Tolerâncias (%)<input id="allowance" data-field="allowance" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+        <label>Demanda (unid. por período)<input id="demand" data-field="demand" inputmode="decimal" placeholder="ex.: 480" autocomplete="off"></label>
+        <label>Tempo disponível (min por período)<input id="availableMin" data-field="availableMin" inputmode="decimal" placeholder="ex.: 440" autocomplete="off"></label>
       </div>
-      <p class="hint" style="margin:0">Tempo normal = tempo médio × ritmo. Tempo padrão = tempo normal × (1 + tolerâncias). Com 100% e 0% os indicadores de tempo padrão ficam ocultos.</p>
+      <p class="hint" style="margin:0">Tempo normal = tempo médio × ritmo. Tempo padrão = tempo normal × (1 + tolerâncias).
+        Takt = tempo disponível ÷ demanda; operadores necessários = tempo por unidade ÷ takt.
+        Campos vazios (ou 100% e 0%) deixam esses indicadores ocultos.</p>
     </details>
     <div class="study-picker">
       <select id="studyList" aria-label="Trocar de estudo"></select>
-      <button type="button" class="danger" data-action="delete-current">Excluir</button>
+      <button type="button" class="danger" id="btnDeleteCurrent" data-action="delete-current" data-edit-only>Excluir</button>
     </div>
     <p id="studyMetaLine" class="hint" style="margin:10px 0 0"></p>
   </section>
@@ -132,7 +139,7 @@
     <div id="timer" class="timer-display">00:00:00.0</div>
     <div class="live-row">Elemento atual: <span id="liveElement">0,0s</span></div>
     <div class="cycle-row">Ciclo <b id="cycle">1</b></div>
-    <div class="timer-controls">
+    <div class="timer-controls" data-edit-only>
       <button type="button" id="btnStart" data-action="start">▶ Iniciar</button>
       <button type="button" id="btnPause" data-action="pause" disabled>⏸ Pausar</button>
       <button type="button" data-action="reset">↺ Zerar</button>
@@ -140,11 +147,12 @@
     </div>
     <div class="last-mark">
       <span id="lastMarkText">Nenhuma marcação ainda</span>
-      <button type="button" id="btnUndo" data-action="undo" disabled>↶ Desfazer</button>
+      <button type="button" id="btnNote" data-action="note-last" disabled title="Anotar uma observação na última marcação" data-edit-only>📝 Obs.</button>
+      <button type="button" id="btnUndo" data-action="undo" disabled data-edit-only>↶ Desfazer</button>
     </div>
   </section>
 
-  <section class="panel no-print">
+  <section class="panel no-print" data-edit-only>
     <h2>Quantidade da Etapa</h2>
     <div class="qty-row">
       <button type="button" data-action="qty" data-delta="-10">-10</button>
@@ -159,8 +167,8 @@
   <section class="panel no-print">
     <h2>Etapas</h2>
     <p class="hint">Toque numa etapa para marcar o tempo decorrido desde a última marcação. "Novo Ciclo" zera o elemento atual sem registrá-lo.</p>
-    <p class="hint shortcut-hint">Atalhos: <b>Espaço</b> iniciar/pausar · <b>1–9</b> marcar etapa · <b>N</b> novo ciclo · <b>Ctrl+Z</b> desfazer</p>
-    <form class="stage-form" id="stageForm" data-field-hide>
+    <p class="hint shortcut-hint" data-edit-only>Atalhos: <b>Espaço</b> iniciar/pausar · <b>1–9</b> marcar etapa · <b>0</b> interrupção · <b>N</b> novo ciclo · <b>Ctrl+Z</b> desfazer</p>
+    <form class="stage-form" id="stageForm" data-field-hide data-edit-only>
       <input id="stageName" placeholder="Nome da etapa" aria-label="Nome da etapa" autocomplete="off">
       <select id="stageType" aria-label="Tipo da etapa">
         <option>VA</option>
@@ -183,7 +191,7 @@
     <div class="table-wrap">
       <table class="records">
         <thead>
-          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Horário</th><th class="no-print">Ações</th></tr>
+          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Horário</th><th>Obs.</th><th class="no-print">Ações</th></tr>
         </thead>
         <tbody id="recordsTable"></tbody>
       </table>
@@ -202,6 +210,12 @@
     <h2>Histórico</h2>
     <p class="hint">Linha do tempo dos eventos mais importantes deste estudo.</p>
     <div id="historyTimeline"></div>
+    <div id="versionsPanel" class="versions-panel" hidden>
+      <h2>Versões salvas no servidor</h2>
+      <p class="hint">O servidor guarda uma versão do estudo a cada 10 minutos de edição, por 90 dias. Restaurar não apaga o estado atual (ele também fica guardado).</p>
+      <button type="button" data-action="load-versions">Ver versões anteriores</button>
+      <div id="versionsList"></div>
+    </div>
   </section>
 
 </main>
@@ -220,6 +234,11 @@
       </select>
     </label>
     <label class="check"><input id="editStageOutput" type="checkbox"> <span>Conta para a produção<br><small class="hint">Marque a(s) etapa(s) que representam a saída do processo. Se nenhuma estiver marcada, a produtividade soma a quantidade de todas as etapas.</small></span></label>
+    <div class="move-row">
+      <button type="button" id="btnStageBack" data-action="stage-back">◀ Mover para trás</button>
+      <span id="stagePosLabel" class="hint"></span>
+      <button type="button" id="btnStageFwd" data-action="stage-fwd">Mover para frente ▶</button>
+    </div>
     <div class="auth-actions">
       <button type="submit" class="cta">Salvar</button>
       <button type="button" data-action="close-modal">Cancelar</button>
@@ -250,6 +269,10 @@
       <p class="hint" style="margin:0">Usados no cálculo de "ciclos necessários": n = (z·s / (e·x̄))².</p>
     </div>
     <div class="modal-section">
+      <h3>Coleta</h3>
+      <label class="row">Vibrar ao marcar etapa (celular) <input id="prefVibrate" type="checkbox"></label>
+    </div>
+    <div class="modal-section">
       <h3>Backup</h3>
       <div class="btn-row">
         <button type="button" data-action="export-backup">Baixar backup</button>
@@ -258,9 +281,66 @@
       <input id="backupFile" type="file" accept="application/json,.json" hidden>
       <p class="hint" style="margin:0">O backup (JSON) contém todos os seus estudos. Restaurar mescla com os estudos atuais — nada é apagado.</p>
     </div>
+    <div class="modal-section danger-zone">
+      <h3>Conta</h3>
+      <button type="button" class="danger" data-action="delete-account">Excluir minha conta e meus dados</button>
+      <p class="hint" style="margin:0">Apaga sua conta, seus estudos e compartilhamentos do servidor e deste aparelho (LGPD). Baixe um backup antes, se quiser guardar os dados.</p>
+    </div>
     <p class="hint" style="margin:0" id="appVersion">CronoAnálise</p>
     <div class="auth-actions">
       <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Compartilhar ===================== -->
+<div id="shareModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Compartilhar estudo</h2>
+    <p class="hint" style="margin:0"><b id="shareStudyName"></b></p>
+    <p class="hint" id="shareUnavailable" hidden>O compartilhamento fica disponível depois que o administrador rodar a migração <code>supabase/migrations/002_estudos_por_linha.sql</code> no Supabase.</p>
+    <form id="shareForm" class="share-form">
+      <input id="shareEmail" type="email" placeholder="e-mail da pessoa" aria-label="E-mail da pessoa" autocomplete="off">
+      <select id="shareRole" aria-label="Tipo de acesso">
+        <option value="viewer">Pode ver</option>
+        <option value="editor">Pode editar</option>
+      </select>
+      <button type="submit" class="cta">Compartilhar</button>
+    </form>
+    <div id="shareError" class="auth-error" role="alert"></div>
+    <div id="shareList" class="table-wrap"></div>
+    <p class="hint" style="margin:0">A pessoa vê o estudo ao entrar com esse e-mail (mesmo se criar a conta depois). Quem pode editar não consegue excluir nem compartilhar.</p>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Comparar ===================== -->
+<div id="compareModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+    <h2 id="compareTitle">Comparar estudos</h2>
+    <div class="form-grid">
+      <label>Antes<select id="compareA"></select></label>
+      <label>Depois<select id="compareB"></select></label>
+    </div>
+    <div id="compareResult"></div>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Excluir conta ===================== -->
+<div id="deleteAccountModal" class="modal-overlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Excluir conta</h2>
+    <p class="hint" style="margin:0">Isto apaga <b>definitivamente</b> sua conta, todos os seus estudos, compartilhamentos e versões no servidor, e os dados deste aparelho. Não dá para desfazer.</p>
+    <label>Digite EXCLUIR para confirmar<input id="deleteConfirm" autocomplete="off"></label>
+    <div id="deleteError" class="auth-error" role="alert"></div>
+    <div class="auth-actions">
+      <button type="button" class="danger" id="btnConfirmDelete" data-action="confirm-delete-account">Excluir tudo</button>
+      <button type="button" data-action="close-modal">Cancelar</button>
     </div>
   </div>
 </div>
@@ -272,7 +352,7 @@
     <p class="hint" id="adminSummary" style="margin:0">Carregando…</p>
     <div class="table-wrap">
       <table class="summary-table">
-        <thead><tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th></tr></thead>
+        <thead id="adminUsersHead"><tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th></tr></thead>
         <tbody id="adminUsersTable"></tbody>
       </table>
     </div>

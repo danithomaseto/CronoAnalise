@@ -31,16 +31,17 @@ export function buildCSV(study, stats, exportedAt = new Date()) {
   lines.push(row(t('Data da exportação'), t(exportedAt.toLocaleString('pt-BR'))));
   lines.push('');
 
-  lines.push(row('Ciclo', 'Etapa', 'Tipo', 'Tempo(s)', 'Qtd', 'Horário', 'Considerado'));
+  lines.push(row('Ciclo', 'Etapa', 'Tipo', 'Tempo(s)', 'Qtd', 'Horário', 'Considerado', 'Observação'));
   (study.records || []).forEach(r => {
     lines.push(row(
       r.cycle,
       t(r.stageName),
-      t(r.type),
+      t(r.interruption ? 'Interrupção' : r.type),
       toBR(r.time),
       toBR(r.qty ?? 1, 0),
       t(fmtTimeOfDay(r.ts)),
-      r.excluded ? 'Não' : 'Sim'
+      r.excluded || r.interruption ? 'Não' : 'Sim',
+      t(r.note || '')
     ));
   });
   lines.push('');
@@ -67,6 +68,15 @@ export function buildCSV(study, stats, exportedAt = new Date()) {
   lines.push(row(t('Ciclos'), stats.cycleCount));
   lines.push(row(t('Tempo Médio de Ciclo(s)'), toBR(stats.avgCycle)));
   if (stats.hasStdParams) lines.push(row(t('Tempo Padrão de Ciclo(s)'), toBR(stats.stdCycle)));
+  if (stats.takt > 0) {
+    lines.push(row(t('Takt time (s/un)'), toBR(stats.takt)));
+    lines.push(row(t((stats.hasStdParams ? 'Tempo padrão' : 'Tempo') + ' por unidade (s/un)'), toBR(stats.perUnitRef)));
+    lines.push(row(t('Operadores necessários'), toBR(stats.operatorsNeeded)));
+  }
+  if (stats.interruptionCount) {
+    lines.push(row(t('Interrupções (qtd)'), stats.interruptionCount));
+    lines.push(row(t('Interrupções (s)'), toBR(stats.interruptionTime)));
+  }
   lines.push(row(t('Nível de confiança (%)'), stats.confidence));
   lines.push(row(t('Erro relativo (%)'), stats.errorPct));
 
