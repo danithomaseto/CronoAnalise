@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verificar sintaxe dos módulos
+        run: for f in js/*.js js/core/*.js sw.js; do node --check "$f"; done
+      - name: Validar JSON (manifest e vercel.json)
+        run: node -e "for (const f of ['manifest.webmanifest','vercel.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+      - name: Testes
+        run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright (só para o teste, não vai para o deploy)
+        run: npm i --no-save playwright && npx playwright install --with-deps chromium
+      - name: Testes de ponta a ponta (Supabase simulado)
+        run: npm run test:e2e
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: tests/e2e/out/
+          if-no-files-found: ignore

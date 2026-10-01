@@ -2,275 +2,62 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>CronoAnálise</title>
-<style>
-:root{
-  --paper:#f2efe7;
-  --panel:#ffffff;
-  --graphite:#1c2128;
-  --graphite-2:#262c36;
-  --ink:#1c2128;
-  --ink-soft:#5c6270;
-  --line:#ddd6c7;
-  --accent:#c97a2b;
-  --accent-dark:#a3611f;
-  --va:#2f7d4a;
-  --nva:#b03a2e;
-  --espera:#b8901f;
-  --transporte:#34618a;
-  --radius:14px;
-  --shadow:0 1px 2px rgba(28,33,40,.06),0 4px 10px rgba(28,33,40,.06);
-  --mono:'SFMono-Regular','Consolas','Roboto Mono','Menlo',monospace;
-  --sans:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin:0 0 12px;font-weight:700}
-p.hint{font-size:12px;color:var(--ink-soft);margin:0 0 12px}
-button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 14px;font-size:14px;transition:transform .08s ease,background .15s ease}
-button:hover{background:#f7f5ef}
-button:active{transform:translateY(1px)}
-button:disabled{opacity:.4;cursor:not-allowed}
-input,select{font-family:inherit;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-size:14px;color:var(--ink)}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-.topbar{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:10}
-.brand{display:flex;align-items:baseline;gap:8px}
-.brand b{font-size:18px;letter-spacing:.01em}
-.brand .version{font-size:11px;color:#9aa1ad;border:1px solid #3a4150;border-radius:6px;padding:2px 6px}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.actions button{background:#2a3140;border-color:#3a4150;color:#fff}
-.actions button:hover{background:#343c4d}
-.actions button.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128}
-
-.menu-wrap{position:relative;display:flex;align-items:center;gap:10px}
-.menu-btn{background:#2a3140;border-color:#3a4150;color:#fff;font-size:17px;line-height:1;padding:9px 13px;border-radius:10px}
-.menu-btn:hover{background:#343c4d}
-.menu-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--graphite-2);border:1px solid #3a4150;border-radius:12px;box-shadow:var(--shadow);padding:8px;display:none;flex-direction:column;gap:6px;min-width:220px;z-index:30}
-.menu-dropdown.open{display:flex}
-.menu-dropdown button{background:#2a3140;border-color:#3a4150;color:#fff;text-align:left;width:100%}
-.menu-dropdown button:hover{background:#343c4d}
-.menu-dropdown button.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128}
-@media(max-width:480px){
- .menu-dropdown{right:-8px;min-width:200px}
-}
-
-.canvas{max-width:920px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
-
-.panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
-.empty{color:var(--ink-soft);font-size:13px;margin:0}
-
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px}
-.form-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
-.study-picker{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
-.study-picker select{flex:1}
-
-.module{background:var(--graphite);color:#fff;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
-.module-head{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9aa1ad;margin-bottom:6px;text-align:center}
-.timer-display{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:54px;font-weight:600;text-align:center;letter-spacing:.02em;line-height:1.1}
-.live-row{text-align:center;color:#b9bfca;font-size:13px;margin-top:4px}
-.live-row span{font-family:var(--mono);color:#fff}
-.cycle-row{text-align:center;margin:10px 0;font-size:14px;color:#cfd3da}
-.cycle-row b{color:#fff;font-size:18px;font-family:var(--mono)}
-.timer-controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:6px}
-.timer-controls button{background:#2a3140;border-color:#3a4150;color:#fff}
-.timer-controls button:hover{background:#343c4d}
-.timer-controls .cta{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700}
-.timer-controls .cta:hover{background:#d98a3d}
-
-.qty-row{display:flex;justify-content:center;align-items:center;gap:8px}
-.qty-row input{width:84px;text-align:center;font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
-
-.stage-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.stage-form input{flex:1;min-width:160px}
-.stage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.stage-wrap{position:relative}
-.stage{width:100%;height:84px;border-radius:12px;border:1px solid var(--line);border-left:6px solid var(--ink-soft);background:#fff;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:0 14px;text-align:left}
-.stage .stage-name{font-size:15px;font-weight:600}
-.stage .stage-type{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
-.stage.type-va{border-left-color:var(--va)}
-.stage.type-nva{border-left-color:var(--nva)}
-.stage.type-espera{border-left-color:var(--espera)}
-.stage.type-transporte{border-left-color:var(--transporte)}
-.stage.flash{background:#f3efe3}
-.stage-remove{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;padding:0;background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
-.stage-remove:hover{background:var(--nva);color:#fff;border-color:var(--nva)}
-
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
-.kpi{background:var(--paper);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
-.kpi-label{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
-.kpi-val{font-family:var(--mono);font-size:20px;font-weight:700}
-
-.typebar-wrap{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-.typebar-row{display:grid;grid-template-columns:90px 1fr 130px;align-items:center;gap:10px;font-size:13px}
-.typebar-label{font-weight:600}
-.typebar-track{background:var(--paper);border-radius:6px;height:10px;overflow:hidden}
-.typebar-fill{height:100%;border-radius:6px}
-.typebar-val{font-family:var(--mono);text-align:right;color:var(--ink-soft);font-size:12px}
-
-.summary-table{width:100%;border-collapse:collapse;font-size:13px}
-.summary-table th,.summary-table td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
-.summary-table th{color:var(--ink-soft);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
-.badge{display:inline-block;color:#fff;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
-
-.table-wrap{overflow-x:auto}
-table.records{width:100%;border-collapse:collapse;font-size:13px}
-table.records th,table.records td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
-table.records th{color:var(--ink-soft);font-weight:600;font-size:11px;text-transform:uppercase}
-table.records td[contenteditable]{cursor:text}
-table.records td[contenteditable]:hover{background:#faf8f2}
-table.records select{padding:4px 6px;font-size:12px}
-.danger{background:#fff;border-color:var(--nva);color:var(--nva);padding:4px 9px;font-size:12px}
-.danger:hover{background:var(--nva);color:#fff}
-
-.notes-field{width:100%;min-height:120px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.5;border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px 14px;color:var(--ink)}
-body.dark-theme .notes-field{background:#20262f;color:var(--ink);border-color:var(--line)}
-
-.toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,16px);background:var(--graphite);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:50}
-.toast.show{opacity:1;transform:translate(-50%,0)}
-
-body.field [data-field-hide]{display:none}
-body.field .canvas{max-width:600px}
-body.field .timer-display{font-size:64px}
-body.field .stage{height:104px}
-body.field .stage .stage-name{font-size:17px}
-body.field .module{padding:26px}
-
-@media(max-width:480px){
- .timer-display{font-size:42px}
- body.field .timer-display{font-size:50px}
- .typebar-row{grid-template-columns:70px 1fr 100px;font-size:12px}
-}
-
-@media(prefers-reduced-motion:reduce){
- *{transition:none!important;animation:none!important}
-}
-
-.auth-overlay{position:fixed;inset:0;background:var(--graphite);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
-.auth-box{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:26px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px}
-.auth-box label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
-.auth-actions{display:flex;gap:8px;margin-top:4px}
-.auth-actions button{flex:1}
-.auth-error{color:var(--nva);font-size:12px;min-height:16px}
-.auth-msg{color:var(--va);font-size:12px;min-height:16px;margin:0}
-body.authed .auth-overlay{display:none}
-body:not(.authed) .topbar,body:not(.authed) .canvas{display:none}
-.user-email{color:#9aa1ad;font-size:12px;align-self:center;margin-right:2px}
-
-/* ---------- Tema Escuro ---------- */
-body.dark-theme{
-  --paper:#14171c;
-  --panel:#1c2128;
-  --ink:#e8eaed;
-  --ink-soft:#9aa1ad;
-  --line:#2b323d;
-}
-body.dark-theme input,body.dark-theme select{background:#20262f;color:var(--ink);border-color:var(--line)}
-body.dark-theme button{background:var(--panel);color:var(--ink);border-color:var(--line)}
-body.dark-theme button:hover{background:#262d38}
-body.dark-theme .actions button{background:#2a3140;border-color:#3a4150;color:#fff}
-body.dark-theme .actions button:hover{background:#343c4d}
-body.dark-theme .stage{background:var(--panel)}
-body.dark-theme .stage.flash{background:#2a3140}
-body.dark-theme .study-card{background:var(--panel)}
-body.dark-theme table.records td[contenteditable]:hover{background:#242b35}
-body.dark-theme .typebar-track{background:#242b35}
-body.dark-theme .kpi{background:#20262f}
-
-/* ---------- Navegação Dashboard / Editor ---------- */
-body.view-editor .view-dashboard-only{display:none!important}
-body.view-dashboard .view-editor-only{display:none!important}
-body.view-editor #dashboardView{display:none}
-body.view-dashboard #editorView{display:none}
-body:not(.authed) #dashboardView,body:not(.authed) #editorView{display:none}
-
-.dashboard-view{max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
-.dash-hero{display:flex;justify-content:center;padding:22px}
-.big-cta{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700;font-size:16px;padding:14px 26px;border-radius:12px}
-.big-cta:hover{background:#d98a3d}
-.dash-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.dash-toolbar input{flex:1;min-width:200px}
-.study-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.study-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:8px}
-.study-card-head b{font-size:15px}
-.study-card-meta{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ink-soft)}
-.study-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.study-card-actions button{flex:1;font-size:12px;padding:7px 8px}
-
-/* ---------- Editor: toolbar/tabs ---------- */
-.editor-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px}
-.editor-tabs{display:flex;gap:6px}
-.tab-btn.active{background:var(--accent);border-color:var(--accent-dark);color:#1c2128;font-weight:700}
-
-/* ---------- Autosave indicator ---------- */
-.autosave-indicator{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;color:#9aa1ad;margin-right:auto;margin-left:14px}
-.autosave-status.as-pending{color:#e0b054}
-.autosave-status.as-saving{color:#7fb0e0}
-.autosave-status.as-saved{color:#6fcf8f}
-.autosave-status.as-error{color:#e06a5a}
-.autosave-time{font-size:11px;color:#9aa1ad}
-
-/* ---------- Histórico ---------- */
-.history-item{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
-.history-item:last-child{border-bottom:none}
-.history-time{font-family:var(--mono);font-size:12px;color:var(--ink-soft);min-width:130px}
-.history-text{font-size:13px}
-
-/* ---------- Modais (Editar Etapa / Configurações) ---------- */
-.modal-overlay{position:fixed;inset:0;background:rgba(20,23,28,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
-.modal-box{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
-.modal-box label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft)}
-
-.stage-edit{position:absolute;top:-8px;left:-8px;width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;padding:0;background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
-.stage-edit:hover{background:var(--accent);color:#fff;border-color:var(--accent-dark)}
-body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel)}
-
-@media(max-width:520px){
-  .study-cards{grid-template-columns:1fr}
-  .autosave-indicator{align-items:flex-start;margin-left:0}
-}
-</style>
+<meta name="description" content="Cronoanálise (estudo de tempos e métodos) em tempo real: cronometre etapas, acompanhe indicadores e exporte para o Excel.">
+<meta name="theme-color" content="#1c2128">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/styles.css">
+<script src="js/theme-init.js"></script>
+<script src="vendor/supabase-js-2.117.2.js" defer></script>
+<script type="module" src="js/main.js"></script>
 </head>
-<body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<body class="booting view-dashboard">
 
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<div id="bootScreen" class="boot-screen">Carregando…</div>
+
+<!-- ===================== LOGIN ===================== -->
 <div id="authOverlay" class="auth-overlay">
-  <div class="auth-box">
-    <div class="brand" style="margin-bottom:2px"><b>CronoAnálise</b></div>
+  <form class="auth-box" id="authForm" novalidate>
+    <div class="brand"><b>CronoAnálise</b></div>
     <p class="hint" style="margin:0 0 6px">Entre com e-mail e senha. Seus estudos ficam salvos na nuvem e aparecem em qualquer computador.</p>
-    <label>E-mail<input id="authEmail" type="email" placeholder="voce@email.com" autocomplete="username"></label>
-    <label>Senha<input id="authPass" type="password" placeholder="mínimo 6 caracteres" autocomplete="current-password" onkeydown="if(event.key==='Enter') doSignIn()"></label>
-    <div id="authError" class="auth-error"></div>
-    <p id="authMsg" class="auth-msg"></p>
+    <label>E-mail<input id="authEmail" type="email" placeholder="voce@email.com" autocomplete="username" required></label>
+    <label>Senha<input id="authPass" type="password" placeholder="mínimo 6 caracteres" autocomplete="current-password" minlength="6" required></label>
+    <div id="authError" class="auth-error" role="alert"></div>
+    <p id="authMsg" class="auth-msg" role="status"></p>
     <div class="auth-actions">
-      <button class="cta" onclick="doSignIn()">Entrar</button>
-      <button onclick="doSignUp()">Criar conta</button>
+      <button type="submit" class="cta">Entrar</button>
+      <button type="button" data-action="sign-up">Criar conta</button>
     </div>
-  </div>
+    <button type="button" class="link-btn" data-action="forgot-password">Esqueci minha senha</button>
+  </form>
 </div>
 
+<!-- ===================== TOPO ===================== -->
 <header class="topbar">
   <div class="brand"><b>CronoAnálise</b></div>
-  <div id="autosaveIndicator" class="autosave-indicator view-editor-only">
-    <span id="autosaveStatus" class="autosave-status as-saved">✔ Salvo</span>
-    <span id="autosaveTime" class="autosave-time"></span>
+  <div id="syncIndicator" class="autosave-indicator" aria-live="polite">
+    <span id="syncStatus" class="autosave-status as-saved">✔ Salvo</span>
+    <span id="syncTime" class="autosave-time"></span>
   </div>
   <div class="menu-wrap" id="menuWrap">
     <span id="userEmail" class="user-email"></span>
-    <button class="menu-btn" id="menuBtn" onclick="toggleMenu()" aria-haspopup="true" aria-expanded="false" title="Menu">☰</button>
+    <button type="button" class="menu-btn" id="menuBtn" data-action="toggle-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menuDropdown" title="Menu">☰</button>
     <div class="menu-dropdown" id="menuDropdown">
-      <button class="view-editor-only" onclick="backToDashboard();closeMenu()">← Voltar ao Dashboard</button>
-      <button class="view-editor-only" id="btnField" onclick="toggleField();closeMenu()">Modo Campo</button>
-      <button class="view-editor-only" onclick="manualSave();closeMenu()">Salvar</button>
-      <button onclick="goNewStudy();closeMenu()">Novo Estudo</button>
-      <button class="view-editor-only" onclick="exportCSV();closeMenu()">Exportar CSV</button>
-      <button onclick="toggleTheme();closeMenu()">🌙 Tema Escuro</button>
-      <button onclick="openSettings();closeMenu()">⚙ Configurações</button>
-      <button id="btnAdmin" onclick="openAdminPanel();closeMenu()" style="display:none">👤 Administração</button>
-      <button onclick="doSignOut();closeMenu()">Sair</button>
+      <button type="button" class="view-editor-only" data-action="back-dashboard">← Voltar ao Dashboard</button>
+      <button type="button" class="view-editor-only" id="btnField" data-action="toggle-field">Modo Campo</button>
+      <button type="button" class="view-editor-only" data-action="manual-save">Salvar</button>
+      <button type="button" data-action="new-study">Novo Estudo</button>
+      <button type="button" class="view-editor-only" data-action="export-csv">Exportar CSV</button>
+      <button type="button" class="view-editor-only" data-action="print">Imprimir / PDF</button>
+      <button type="button" id="btnTheme" data-action="toggle-theme">🌙 Tema Escuro</button>
+      <button type="button" data-action="open-settings">⚙ Configurações</button>
+      <button type="button" id="btnAdmin" data-action="open-admin" hidden>👤 Administração</button>
+      <button type="button" data-action="sign-out">Sair</button>
     </div>
   </div>
 </header>
@@ -279,7 +66,7 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
 <div id="dashboardView" class="dashboard-view">
 
   <section class="panel dash-hero">
-    <button class="big-cta" onclick="goNewStudy()">➕ Novo Estudo</button>
+    <button type="button" class="cta big-cta" data-action="new-study">➕ Novo Estudo</button>
   </section>
 
   <section class="panel">
@@ -290,8 +77,8 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
   <section class="panel">
     <h2>Estudos Recentes</h2>
     <div class="dash-toolbar">
-      <input id="dashSearch" placeholder="Pesquisar estudo..." oninput="renderDashboard()">
-      <select id="dashSort" onchange="renderDashboard()">
+      <input id="dashSearch" type="search" placeholder="Pesquisar estudo..." aria-label="Pesquisar estudo">
+      <select id="dashSort" aria-label="Ordenar estudos">
         <option value="recent">Mais recente</option>
         <option value="oldest">Mais antigo</option>
         <option value="az">Nome A-Z</option>
@@ -303,71 +90,86 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
 
 </div>
 
-<!-- ===================== EDITOR (tela atual do cronômetro) ===================== -->
+<!-- ===================== EDITOR ===================== -->
 <main class="canvas" id="editorView">
 
-  <div class="editor-toolbar view-editor-only">
-    <div class="editor-tabs">
-      <button id="tabCrono" class="tab-btn active" onclick="showEditorTab('crono')">Cronômetro</button>
-      <button id="tabHist" class="tab-btn" onclick="showEditorTab('hist')">Histórico</button>
+  <div class="editor-toolbar">
+    <div class="editor-tabs" role="tablist">
+      <button type="button" id="tabCrono" class="tab-btn active" role="tab" aria-selected="true" data-action="tab" data-tab="crono">Cronômetro</button>
+      <button type="button" id="tabHist" class="tab-btn" role="tab" aria-selected="false" data-action="tab" data-tab="hist">Histórico</button>
     </div>
   </div>
 
   <div id="editorMain">
 
+  <h1 class="print-header" id="printTitle"></h1>
+
   <section class="panel" data-field-hide>
     <h2>Estudo</h2>
     <div class="form-grid">
-      <label>Nome do estudo<input id="studyName" placeholder="Ex.: Separação Linha A" onblur="saveStudy()"></label>
-      <label>Processo<input id="process" placeholder="Processo" onblur="saveStudy()"></label>
-      <label>Usuário LMS<input id="operator" placeholder="Usuário LMS" onblur="saveStudy()"></label>
-      <label>Champiom OMS<input id="observer" placeholder="Champiom OMS" onblur="saveStudy()"></label>
+      <label><span data-label="name">Nome do estudo</span><input id="studyName" data-field="name" placeholder="Ex.: Separação Linha A" autocomplete="off"></label>
+      <label><span data-label="process">Processo</span><input id="process" data-field="process" placeholder="Processo" autocomplete="off"></label>
+      <label><span data-label="operator">Usuário LMS</span><input id="operator" data-field="operator" placeholder="Usuário LMS" autocomplete="off"></label>
+      <label><span data-label="observer">Champion OMS</span><input id="observer" data-field="observer" placeholder="Champion OMS" autocomplete="off"></label>
     </div>
+    <details class="std-params" id="stdParams">
+      <summary>Parâmetros de tempo padrão (opcional)</summary>
+      <div class="form-grid">
+        <label>Fator de ritmo (%)<input id="rating" data-field="rating" inputmode="decimal" placeholder="100" autocomplete="off"></label>
+        <label>Tolerâncias (%)<input id="allowance" data-field="allowance" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      </div>
+      <p class="hint" style="margin:0">Tempo normal = tempo médio × ritmo. Tempo padrão = tempo normal × (1 + tolerâncias). Com 100% e 0% os indicadores de tempo padrão ficam ocultos.</p>
+    </details>
     <div class="study-picker">
-      <select id="studyList" onchange="loadSelectedStudy()"></select>
-      <button class="danger" onclick="deleteStudy()">Excluir</button>
+      <select id="studyList" aria-label="Trocar de estudo"></select>
+      <button type="button" class="danger" data-action="delete-current">Excluir</button>
     </div>
     <p id="studyMetaLine" class="hint" style="margin:10px 0 0"></p>
   </section>
 
-  <section class="module">
+  <section class="module" aria-label="Cronômetro">
     <div class="module-head">Cronômetro contínuo</div>
     <div id="timer" class="timer-display">00:00:00.0</div>
     <div class="live-row">Elemento atual: <span id="liveElement">0,0s</span></div>
     <div class="cycle-row">Ciclo <b id="cycle">1</b></div>
     <div class="timer-controls">
-      <button id="btnStart" onclick="startTimer()">▶ Iniciar</button>
-      <button id="btnPause" onclick="pauseTimer()" disabled>⏸ Pausar</button>
-      <button onclick="resetTimer()">↺ Zerar</button>
-      <button class="cta" onclick="newCycle()">Novo Ciclo →</button>
+      <button type="button" id="btnStart" data-action="start">▶ Iniciar</button>
+      <button type="button" id="btnPause" data-action="pause" disabled>⏸ Pausar</button>
+      <button type="button" data-action="reset">↺ Zerar</button>
+      <button type="button" class="cta" data-action="new-cycle">Novo Ciclo →</button>
+    </div>
+    <div class="last-mark">
+      <span id="lastMarkText">Nenhuma marcação ainda</span>
+      <button type="button" id="btnUndo" data-action="undo" disabled>↶ Desfazer</button>
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel no-print">
     <h2>Quantidade da Etapa</h2>
     <div class="qty-row">
-      <button onclick="changeQty(-10)">-10</button>
-      <button onclick="changeQty(-1)">-1</button>
-      <input id="qty" value="1" oninput="onQtyInput()">
-      <button onclick="changeQty(1)">+1</button>
-      <button onclick="changeQty(10)">+10</button>
+      <button type="button" data-action="qty" data-delta="-10">-10</button>
+      <button type="button" data-action="qty" data-delta="-1">-1</button>
+      <input id="qty" value="1" inputmode="decimal" aria-label="Quantidade da próxima etapa" autocomplete="off">
+      <button type="button" data-action="qty" data-delta="1">+1</button>
+      <button type="button" data-action="qty" data-delta="10">+10</button>
     </div>
-    <p class="hint" style="text-align:center;margin-top:10px">Quantidade que será gravada na próxima etapa marcada. Se não alterar, o valor padrão é 1. Após marcar a etapa, o campo volta para 1 automaticamente.</p>
+    <p class="hint" style="text-align:center;margin:10px 0 0">Quantidade que será gravada na próxima etapa marcada. Se não alterar, o valor padrão é 1. Após marcar a etapa, o campo volta para 1 automaticamente.</p>
   </section>
 
-  <section class="panel">
+  <section class="panel no-print">
     <h2>Etapas</h2>
-    <p class="hint">Toque numa etapa para marcar o tempo decorrido desde a última marcação.</p>
-    <div class="stage-form" data-field-hide>
-      <input id="stageName" placeholder="Nome da etapa">
-      <select id="stageType">
+    <p class="hint">Toque numa etapa para marcar o tempo decorrido desde a última marcação. "Novo Ciclo" zera o elemento atual sem registrá-lo.</p>
+    <p class="hint shortcut-hint">Atalhos: <b>Espaço</b> iniciar/pausar · <b>1–9</b> marcar etapa · <b>N</b> novo ciclo · <b>Ctrl+Z</b> desfazer</p>
+    <form class="stage-form" id="stageForm" data-field-hide>
+      <input id="stageName" placeholder="Nome da etapa" aria-label="Nome da etapa" autocomplete="off">
+      <select id="stageType" aria-label="Tipo da etapa">
         <option>VA</option>
         <option>NVA</option>
         <option>Espera</option>
         <option>Transporte</option>
       </select>
-      <button onclick="addStage()">Adicionar</button>
-    </div>
+      <button type="submit">Adicionar</button>
+    </form>
     <div id="stages" class="stage-grid"></div>
   </section>
 
@@ -381,7 +183,7 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
     <div class="table-wrap">
       <table class="records">
         <thead>
-          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Ações</th></tr>
+          <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Horário</th><th class="no-print">Ações</th></tr>
         </thead>
         <tbody id="recordsTable"></tbody>
       </table>
@@ -391,12 +193,12 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
   <section class="panel">
     <h2>Observações / Oportunidades Observadas</h2>
     <p class="hint">Anote pontos de atenção, desvios, ideias de melhoria ou qualquer observação relevante sobre este estudo.</p>
-    <textarea id="notes" class="notes-field" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..." onblur="saveStudy()"></textarea>
+    <textarea id="notes" data-field="notes" class="notes-field" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..."></textarea>
   </section>
 
   </div><!-- /editorMain -->
 
-  <section id="editorHistory" class="panel" style="display:none">
+  <section id="editorHistory" class="panel" hidden>
     <h2>Histórico</h2>
     <p class="hint">Linha do tempo dos eventos mais importantes deste estudo.</p>
     <div id="historyTimeline"></div>
@@ -405,10 +207,10 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
 </main>
 
 <!-- ===================== Modal: Editar Etapa ===================== -->
-<div id="stageEditModal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <h2>Editar Etapa</h2>
-    <label>Nome<input id="editStageName" placeholder="Nome da etapa"></label>
+<div id="stageEditModal" class="modal-overlay" hidden>
+  <form class="modal-box" role="dialog" aria-modal="true" aria-labelledby="stageEditTitle" id="stageEditForm">
+    <h2 id="stageEditTitle">Editar Etapa</h2>
+    <label>Nome<input id="editStageName" placeholder="Nome da etapa" autocomplete="off"></label>
     <label>Tipo
       <select id="editStageType">
         <option>VA</option>
@@ -417,32 +219,56 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
         <option>Transporte</option>
       </select>
     </label>
+    <label class="check"><input id="editStageOutput" type="checkbox"> <span>Conta para a produção<br><small class="hint">Marque a(s) etapa(s) que representam a saída do processo. Se nenhuma estiver marcada, a produtividade soma a quantidade de todas as etapas.</small></span></label>
     <div class="auth-actions">
-      <button class="cta" onclick="saveStageEdit()">Salvar</button>
-      <button onclick="closeStageEdit()">Cancelar</button>
+      <button type="submit" class="cta">Salvar</button>
+      <button type="button" data-action="close-modal">Cancelar</button>
     </div>
-  </div>
+  </form>
 </div>
 
 <!-- ===================== Modal: Configurações ===================== -->
-<div id="settingsModal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <h2>Configurações</h2>
-    <label style="flex-direction:row;align-items:center;justify-content:space-between;display:flex">
-      Tema escuro
-      <input id="settingsThemeToggle" type="checkbox" onchange="toggleTheme()">
-    </label>
-    <p class="hint" style="margin:0">CronoAnálise — Beta 8</p>
+<div id="settingsModal" class="modal-overlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Configurações</h2>
+    <label class="row">Tema escuro <input id="settingsThemeToggle" type="checkbox"></label>
+    <div class="modal-section">
+      <h3>Estatística</h3>
+      <label class="row">Nível de confiança
+        <select id="prefConfidence">
+          <option value="90">90%</option>
+          <option value="95">95%</option>
+          <option value="99">99%</option>
+        </select>
+      </label>
+      <label class="row">Erro relativo aceitável
+        <select id="prefError">
+          <option value="5">±5%</option>
+          <option value="10">±10%</option>
+        </select>
+      </label>
+      <p class="hint" style="margin:0">Usados no cálculo de "ciclos necessários": n = (z·s / (e·x̄))².</p>
+    </div>
+    <div class="modal-section">
+      <h3>Backup</h3>
+      <div class="btn-row">
+        <button type="button" data-action="export-backup">Baixar backup</button>
+        <button type="button" data-action="import-backup">Restaurar backup…</button>
+      </div>
+      <input id="backupFile" type="file" accept="application/json,.json" hidden>
+      <p class="hint" style="margin:0">O backup (JSON) contém todos os seus estudos. Restaurar mescla com os estudos atuais — nada é apagado.</p>
+    </div>
+    <p class="hint" style="margin:0" id="appVersion">CronoAnálise</p>
     <div class="auth-actions">
-      <button class="cta" onclick="closeSettings()">Fechar</button>
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
     </div>
   </div>
 </div>
 
 <!-- ===================== Modal: Administração ===================== -->
-<div id="adminModal" class="modal-overlay" style="display:none">
-  <div class="modal-box" style="max-width:600px">
-    <h2>Administração — Usuários</h2>
+<div id="adminModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+    <h2 id="adminTitle">Administração — Usuários</h2>
     <p class="hint" id="adminSummary" style="margin:0">Carregando…</p>
     <div class="table-wrap">
       <table class="summary-table">
@@ -451,967 +277,25 @@ body.dark-theme .stage-edit,body.dark-theme .stage-remove{background:var(--panel
       </table>
     </div>
     <div class="auth-actions">
-      <button onclick="loadAdminUsers()">↺ Atualizar</button>
-      <button class="cta" onclick="closeAdminPanel()">Fechar</button>
+      <button type="button" data-action="reload-admin">↺ Atualizar</button>
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
     </div>
   </div>
 </div>
 
-<script>
-const STORAGE_KEY = 'cronoanalise_studies_v2';
-const OLD_STORAGE_KEY = 'studies';
-const TYPE_COLORS = {VA:'#2f7d4a',NVA:'#b03a2e',Espera:'#b8901f',Transporte:'#34618a'};
+<!-- ===================== Modal: Nova senha (link de recuperação) ===================== -->
+<div id="recoveryModal" class="modal-overlay" hidden>
+  <form class="modal-box" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle" id="recoveryForm">
+    <h2 id="recoveryTitle">Definir nova senha</h2>
+    <label>Nova senha<input id="newPass" type="password" autocomplete="new-password" minlength="6"></label>
+    <label>Confirmar senha<input id="newPass2" type="password" autocomplete="new-password" minlength="6"></label>
+    <div id="recoveryError" class="auth-error" role="alert"></div>
+    <div class="auth-actions">
+      <button type="submit" class="cta">Salvar senha</button>
+      <button type="button" data-action="close-modal">Cancelar</button>
+    </div>
+  </form>
+</div>
 
-/* ---------- Nuvem (Supabase) ---------- */
-const SUPABASE_URL = 'https://zwfnsknaxqnexeuzvvjn.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_SSH2Hy1kaPLAdutcIR39WA_J6oieZ2v';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const ADMIN_EMAIL = 'daniel.thomaseto@dhl.com';
-let currentUser = null;
-let cloudPushTimer = null;
-
-let state = { stages:[], records:[], cycleQty:{1:1}, currentCycle:1, notes:'',
-  meta:{ id:null, createdAt:null, updatedAt:null, lastSync:'', history:[] } };
-let elapsed=0, start=0, intv=null, lastMark=0;
-let wakeLock=null;
-let idCounter=0;
-let autosaveState='saved';
-
-function genId(prefix){ idCounter++; return prefix+'_'+idCounter+'_'+Date.now().toString(36); }
-
-function parseNumber(v){
-  if(v===undefined||v===null||v==='') return 0;
-  const n = parseFloat(String(v).trim().replace(',', '.'));
-  return isNaN(n) ? 0 : n;
-}
-function toBR(n, dec=2){
-  if(!isFinite(n)) n=0;
-  return n.toFixed(dec).replace('.', ',');
-}
-function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function showToast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._timeout);
-  t._timeout = setTimeout(()=>t.classList.remove('show'), 2200);
-}
-
-/* ---------- Timer ---------- */
-function fmt(ms){
-  const deci = Math.floor(ms/100)%10;
-  const totalSec = Math.floor(ms/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+deci;
-}
-function startTimer(){
-  if(intv) return;
-  start = Date.now()-elapsed;
-  intv = setInterval(()=>{
-    elapsed = Date.now()-start;
-    document.getElementById('timer').textContent = fmt(elapsed);
-    const live = Math.max(0, elapsed/1000-lastMark);
-    document.getElementById('liveElement').textContent = toBR(live,1)+'s';
-  },100);
-  requestWakeLock();
-  updateStartPauseUI(true);
-}
-function pauseTimer(){
-  clearInterval(intv); intv=null;
-  releaseWakeLock();
-  updateStartPauseUI(false);
-}
-function resetTimer(){
-  pauseTimer();
-  elapsed=0; lastMark=0;
-  document.getElementById('timer').textContent = fmt(0);
-  document.getElementById('liveElement').textContent = '0,0s';
-}
-function updateStartPauseUI(running){
-  document.getElementById('btnStart').disabled = running;
-  document.getElementById('btnPause').disabled = !running;
-}
-
-/* ---------- Wake Lock (mantém a tela acesa durante a coleta) ---------- */
-async function requestWakeLock(){
-  try{
-    if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); }
-  }catch(e){ /* não crítico se não houver suporte */ }
-}
-function releaseWakeLock(){
-  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock=null; }
-}
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState==='visible' && intv) requestWakeLock();
-});
-
-/* ---------- Quantidade por etapa ---------- */
-function changeQty(v){
-  const e = document.getElementById('qty');
-  e.value = Math.max(0, parseNumber(e.value)+v);
-}
-function onQtyInput(){
-  const e = document.getElementById('qty');
-  if(parseNumber(e.value)<0) e.value = 0;
-}
-function newCycle(){
-  state.currentCycle++;
-  document.getElementById('cycle').textContent = state.currentCycle;
-  lastMark = elapsed/1000;
-  document.getElementById('qty').value = 1;
-  saveStudy();
-  renderStats();
-}
-
-/* ---------- Etapas ---------- */
-function addStage(){
-  const nameEl = document.getElementById('stageName');
-  const n = nameEl.value.trim();
-  if(!n) return;
-  state.stages.push({ id:genId('st'), name:n, type:document.getElementById('stageType').value });
-  nameEl.value='';
-  logHistory('Etapa "'+n+'" adicionada');
-  renderStages();
-  saveStudy();
-}
-function removeStage(id){
-  if(!confirm('Remover esta etapa da lista de captura? Os registros já marcados com ela são mantidos.')) return;
-  const s = state.stages.find(x=>x.id===id);
-  state.stages = state.stages.filter(s=>s.id!==id);
-  logHistory('Etapa "'+(s?s.name:'')+'" removida');
-  renderStages();
-  saveStudy();
-}
-
-/* ---------- Editar Etapa (modal) ---------- */
-let editingStageId = null;
-function openStageEdit(id){
-  const s = state.stages.find(x=>x.id===id);
-  if(!s) return;
-  editingStageId = id;
-  document.getElementById('editStageName').value = s.name;
-  document.getElementById('editStageType').value = s.type;
-  document.getElementById('stageEditModal').style.display = 'flex';
-}
-function closeStageEdit(){
-  editingStageId = null;
-  document.getElementById('stageEditModal').style.display = 'none';
-}
-function saveStageEdit(){
-  const s = state.stages.find(x=>x.id===editingStageId);
-  if(!s) return;
-  const newName = document.getElementById('editStageName').value.trim();
-  const newType = document.getElementById('editStageType').value;
-  if(!newName) return;
-  const oldName = s.name;
-  s.name = newName;
-  s.type = newType;
-  state.records.forEach(r=>{
-    if(r.stageId === s.id){ r.stageName = newName; r.type = newType; }
-  });
-  if(oldName !== newName){ logHistory('Etapa "'+oldName+'" renomeada para "'+newName+'"'); }
-  else{ logHistory('Etapa "'+newName+'" editada'); }
-  closeStageEdit();
-  renderStages();
-  renderRecords();
-  saveStudy();
-}
-function renderStages(){
-  const wrap = document.getElementById('stages');
-  wrap.innerHTML = '';
-  if(state.stages.length===0){
-    wrap.innerHTML = '<p class="empty">Nenhuma etapa cadastrada ainda. Adicione as etapas do processo acima.</p>';
-    return;
-  }
-  state.stages.forEach(s=>{
-    const wrapDiv = document.createElement('div');
-    wrapDiv.className = 'stage-wrap';
-    wrapDiv.dataset.id = s.id;
-
-    const btn = document.createElement('button');
-    btn.className = 'stage type-'+s.type.toLowerCase();
-    btn.innerHTML = '<span class="stage-name">'+escapeHtml(s.name)+'</span><span class="stage-type">'+s.type+'</span>';
-    btn.onclick = ()=>markStage(s.id);
-
-    const rm = document.createElement('button');
-    rm.className = 'stage-remove';
-    rm.title = 'Remover etapa';
-    rm.textContent = '✕';
-    rm.onclick = (e)=>{ e.stopPropagation(); removeStage(s.id); };
-
-    const edit = document.createElement('button');
-    edit.className = 'stage-edit';
-    edit.title = 'Editar etapa';
-    edit.textContent = '✎';
-    edit.onclick = (e)=>{ e.stopPropagation(); openStageEdit(s.id); };
-
-    wrapDiv.appendChild(btn);
-    wrapDiv.appendChild(rm);
-    wrapDiv.appendChild(edit);
-    wrap.appendChild(wrapDiv);
-  });
-}
-function flashStage(id){
-  const el = document.querySelector('.stage-wrap[data-id="'+id+'"] .stage');
-  if(!el) return;
-  el.classList.add('flash');
-  setTimeout(()=>el.classList.remove('flash'), 350);
-}
-function markStage(id){
-  const stage = state.stages.find(s=>s.id===id);
-  if(!stage) return;
-  const now = elapsed/1000;
-  const t = +(now-lastMark).toFixed(2);
-  lastMark = now;
-  const qtyEl = document.getElementById('qty');
-  const qty = parseNumber(qtyEl.value) || 1;
-  state.records.push({
-    id: genId('r'),
-    cycle: state.currentCycle,
-    stageId: stage.id,
-    stageName: stage.name,
-    type: stage.type,
-    time: t,
-    qty: qty
-  });
-  qtyEl.value = 1;
-  flashStage(id);
-  renderRecords();
-  saveStudy();
-}
-
-/* ---------- Registros ---------- */
-function editRecord(id, field, value){
-  const r = state.records.find(x=>x.id===id);
-  if(!r) return;
-  if(field==='time') r.time = parseNumber(value);
-  else if(field==='stageName') r.stageName = value.trim() || r.stageName;
-  else if(field==='type') r.type = value;
-  else if(field==='qty') r.qty = Math.max(0, parseNumber(value));
-  saveStudy();
-  renderRecords();
-}
-function deleteRecord(id){
-  state.records = state.records.filter(r=>r.id!==id);
-  logHistory('Registro excluído');
-  renderRecords();
-  saveStudy();
-}
-function renderRecords(){
-  const tb = document.getElementById('recordsTable');
-  tb.innerHTML='';
-  state.records.forEach(r=>{
-    const tr = document.createElement('tr');
-    const typeOptions = ['VA','NVA','Espera','Transporte'].map(t=>
-      '<option'+(t===r.type?' selected':'')+'>'+t+'</option>'
-    ).join('');
-    tr.innerHTML =
-      '<td>'+r.cycle+'</td>'+
-      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'stageName\',this.innerText)">'+escapeHtml(r.stageName)+'</td>'+
-      '<td><select onchange="editRecord(\''+r.id+'\',\'type\',this.value)">'+typeOptions+'</select></td>'+
-      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'time\',this.innerText)">'+toBR(r.time)+'</td>'+
-      '<td contenteditable onblur="editRecord(\''+r.id+'\',\'qty\',this.innerText)">'+toBR(r.qty??1,0)+'</td>'+
-      '<td><button class="danger" onclick="deleteRecord(\''+r.id+'\')">Excluir</button></td>';
-    tb.appendChild(tr);
-  });
-  renderStats();
-}
-
-/* ---------- Indicadores ---------- */
-function computeTypeBreakdown(){
-  const byType={}; let total=0;
-  state.records.forEach(r=>{ byType[r.type]=(byType[r.type]||0)+r.time; total+=r.time; });
-  return {byType, total};
-}
-function computeStageSummary(){
-  const map = {};
-  state.records.forEach(r=>{
-    const key = r.stageName+'||'+r.type;
-    if(!map[key]) map[key] = {name:r.stageName, type:r.type, count:0, total:0, min:Infinity, max:-Infinity};
-    const m = map[key];
-    m.count++; m.total += r.time;
-    if(r.time<m.min) m.min=r.time;
-    if(r.time>m.max) m.max=r.time;
-  });
-  return Object.values(map).map(m=>({...m, avg: m.total/m.count}));
-}
-function renderStats(){
-  const total = state.records.reduce((a,r)=>a+r.time,0);
-  const qtyTotal = state.records.reduce((a,r)=>a+(Number(r.qty)||0),0);
-  const hours = total/3600;
-  const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
-  const {byType} = computeTypeBreakdown();
-  const vaPct = total>0 ? ((byType['VA']||0)/total*100) : 0;
-
-  const breakdownHtml = ['VA','NVA','Espera','Transporte'].map(t=>{
-    const v = byType[t]||0;
-    const pct = total>0 ? (v/total*100) : 0;
-    return '<div class="typebar-row">'+
-      '<span class="typebar-label">'+t+'</span>'+
-      '<div class="typebar-track"><div class="typebar-fill" style="width:'+pct+'%;background:'+TYPE_COLORS[t]+'"></div></div>'+
-      '<span class="typebar-val">'+toBR(v)+'s ('+toBR(pct,1)+'%)</span>'+
-    '</div>';
-  }).join('');
-
-  const summary = computeStageSummary();
-  const summaryRows = summary.map(s=>
-    '<tr><td>'+escapeHtml(s.name)+'</td>'+
-    '<td><span class="badge" style="background:'+TYPE_COLORS[s.type]+'">'+s.type+'</span></td>'+
-    '<td>'+s.count+'</td>'+
-    '<td>'+toBR(s.total)+'</td>'+
-    '<td>'+toBR(s.avg)+'</td>'+
-    '<td>'+toBR(s.min===Infinity?0:s.min)+'</td>'+
-    '<td>'+toBR(s.max===-Infinity?0:s.max)+'</td></tr>'
-  ).join('');
-
-  document.getElementById('stats').innerHTML =
-    '<div class="kpi-grid">'+
-      '<div class="kpi"><span class="kpi-label">Tempo Total</span><span class="kpi-val">'+toBR(total)+'s</span></div>'+
-      '<div class="kpi"><span class="kpi-label">Quantidade Total</span><span class="kpi-val">'+toBR(qtyTotal,0)+'</span></div>'+
-      '<div class="kpi"><span class="kpi-label">Produtividade</span><span class="kpi-val">'+toBR(prod)+'/h</span></div>'+
-      '<div class="kpi"><span class="kpi-label">% Valor Agregado</span><span class="kpi-val">'+toBR(vaPct,1)+'%</span></div>'+
-    '</div>'+
-    '<div class="typebar-wrap">'+breakdownHtml+'</div>'+
-    '<table class="summary-table"><thead><tr><th>Etapa</th><th>Tipo</th><th>Ocorr.</th><th>Total(s)</th><th>Média(s)</th><th>Mín(s)</th><th>Máx(s)</th></tr></thead>'+
-    '<tbody>'+(summaryRows || '<tr><td colspan="7" class="empty">Sem registros ainda</td></tr>')+'</tbody></table>';
-}
-
-/* ---------- Persistência ---------- */
-function migrateOldData(){
-  try{
-    if(localStorage.getItem(STORAGE_KEY)) return;
-    const oldRaw = localStorage.getItem(OLD_STORAGE_KEY);
-    if(!oldRaw) return;
-    const oldStudies = JSON.parse(oldRaw);
-    const migrated = {};
-    Object.keys(oldStudies).forEach(name=>{
-      const s = oldStudies[name] || {};
-      const oldStages = s.stages || [];
-      const stageWithIds = oldStages.map((st,i)=>({ id:'st_legacy_'+i, name:st.name, type:st.type }));
-      const cycleQty = {};
-      (s.records||[]).forEach(r=>{
-        const c = r.cycle, q = Number(r.qty)||0;
-        if(!(c in cycleQty) || q>cycleQty[c]) cycleQty[c]=q;
-      });
-      const records = (s.records||[]).map((r,i)=>{
-        const idx = oldStages.findIndex(st=>st.name===r.stage);
-        return {
-          id:'r_legacy_'+i,
-          cycle:r.cycle,
-          stageId: idx>=0 ? stageWithIds[idx].id : null,
-          stageName:r.stage,
-          type:r.type,
-          time:Number(r.time)||0,
-          qty:Number(r.qty)||1
-        };
-      });
-      migrated[name+' (importado)'] = {
-        process:'', operator:'', observer:'',
-        stages: stageWithIds,
-        records,
-        cycleQty: Object.keys(cycleQty).length ? cycleQty : {1:1},
-        currentCycle: s.currentCycle || 1
-      };
-    });
-    if(Object.keys(migrated).length) localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-  }catch(e){
-    console.warn('Não foi possível importar estudos do Beta 5:', e);
-  }
-}
-/* ---------- Metadados do estudo (Dashboard/Histórico/Autosave) ---------- */
-function ensureStudyMeta(s, name){
-  const now = new Date().toISOString();
-  if(!s.id) s.id = genId('study');
-  if(!s.createdAt) s.createdAt = now;
-  if(!s.updatedAt) s.updatedAt = s.createdAt;
-  if(s.lastSync===undefined) s.lastSync = '';
-  if(!s.history) s.history = [{ ts: s.createdAt, text:'Estudo criado' }];
-  if(!s.stages) s.stages = [];
-  if(!s.records) s.records = [];
-  if(!s.cycleQty) s.cycleQty = {1:1};
-  if(!s.currentCycle) s.currentCycle = 1;
-  if(s.notes===undefined || s.notes===null) s.notes = '';
-  s.records.forEach(r=>{
-    if(r.qty===undefined || r.qty===null || r.qty===''){
-      r.qty = (s.cycleQty && s.cycleQty[r.cycle]!==undefined) ? (Number(s.cycleQty[r.cycle])||1) : 1;
-    }
-  });
-  return s;
-}
-function fmtDate(iso){
-  if(!iso) return '—';
-  const d = new Date(iso);
-  if(isNaN(d.getTime())) return '—';
-  const today = new Date();
-  if(d.toDateString()===today.toDateString()){
-    return 'Hoje às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  }
-  return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-}
-function logHistory(text){
-  if(!state.meta) return;
-  if(!state.meta.history) state.meta.history = [];
-  state.meta.history.push({ ts: new Date().toISOString(), text });
-  if(state.meta.history.length>50) state.meta.history.shift();
-}
-function setAutosaveState(s){
-  autosaveState = s;
-  const el = document.getElementById('autosaveStatus');
-  if(!el) return;
-  const map = {
-    pending:'● Alterações pendentes',
-    saving:'🔄 Salvando...',
-    saved:'✔ Salvo',
-    error:'⚠ Erro ao salvar'
-  };
-  el.textContent = map[s] || '';
-  el.className = 'autosave-status as-'+s;
-}
-function renderStudyMeta(){
-  const line = document.getElementById('studyMetaLine');
-  const timeEl = document.getElementById('autosaveTime');
-  if(!state.meta) return;
-  if(line) line.textContent = 'Criado: '+fmtDate(state.meta.createdAt)+'  ·  Última edição: '+fmtDate(state.meta.updatedAt);
-  if(timeEl) timeEl.textContent = 'Última atualização: '+fmtDate(state.meta.updatedAt);
-}
-function renderHistory(){
-  const el = document.getElementById('historyTimeline');
-  if(!el) return;
-  const hist = (state.meta && state.meta.history) || [];
-  if(!hist.length){ el.innerHTML = '<p class="empty">Sem eventos registrados ainda.</p>'; return; }
-  el.innerHTML = hist.slice().reverse().map(h=>
-    '<div class="history-item"><div class="history-time">'+fmtDate(h.ts)+'</div><div class="history-text">'+escapeHtml(h.text)+'</div></div>'
-  ).join('');
-}
-
-function saveStudy(){
-  setAutosaveState('pending');
-  let studies = {};
-  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  const nameEl = document.getElementById('studyName');
-  let name = nameEl.value.trim();
-  if(!name){
-    name = 'Estudo_'+new Date().toLocaleString('pt-BR').replace(/[\/,: ]/g,'-');
-    nameEl.value = name;
-  }
-  const now = new Date().toISOString();
-  const existing = studies[name] || {};
-  ensureStudyMeta(existing, name);
-  const id = state.meta.id || existing.id;
-  const createdAt = state.meta.createdAt || existing.createdAt || now;
-  const history = (state.meta.history && state.meta.history.length) ? state.meta.history : (existing.history || []);
-  studies[name] = {
-    id: id,
-    process: document.getElementById('process').value,
-    operator: document.getElementById('operator').value,
-    observer: document.getElementById('observer').value,
-    stages: state.stages,
-    records: state.records,
-    cycleQty: state.cycleQty,
-    currentCycle: state.currentCycle,
-    notes: document.getElementById('notes').value,
-    createdAt: createdAt,
-    updatedAt: now,
-    lastSync: existing.lastSync || '',
-    history: history
-  };
-  state.meta.id = id;
-  state.meta.createdAt = createdAt;
-  state.meta.updatedAt = now;
-  state.meta.history = history;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
-  scheduleCloudPush(studies);
-  loadStudyList();
-  document.getElementById('studyList').value = name;
-  renderStudyMeta();
-  renderHistory();
-}
-function manualSave(){
-  saveStudy();
-  showToast('Estudo salvo ✓');
-}
-function loadStudyList(){
-  let studies = {};
-  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  const sel = document.getElementById('studyList');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">Selecione um estudo salvo…</option>';
-  Object.keys(studies).sort().forEach(k=>{
-    const opt = document.createElement('option');
-    opt.value=k; opt.textContent=k;
-    sel.appendChild(opt);
-  });
-  if(current) sel.value = current;
-}
-function loadSelectedStudy(){
-  const name = document.getElementById('studyList').value;
-  if(!name) return;
-  let studies = {};
-  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  const s = studies[name];
-  if(!s) return;
-  ensureStudyMeta(s, name);
-  state.stages = s.stages || [];
-  state.records = s.records || [];
-  state.cycleQty = s.cycleQty || {1:1};
-  state.currentCycle = s.currentCycle || 1;
-  state.notes = s.notes || '';
-  state.meta = { id:s.id, createdAt:s.createdAt, updatedAt:s.updatedAt, lastSync:s.lastSync||'', history:s.history||[] };
-  document.getElementById('studyName').value = name;
-  document.getElementById('process').value = s.process || '';
-  document.getElementById('operator').value = s.operator || '';
-  document.getElementById('observer').value = s.observer || '';
-  document.getElementById('notes').value = s.notes || '';
-  document.getElementById('cycle').textContent = state.currentCycle;
-  document.getElementById('qty').value = 1;
-  resetTimer();
-  renderStages(); renderRecords(); renderStats();
-  renderStudyMeta(); renderHistory(); setAutosaveState('saved');
-  showEditorTab('crono');
-  showToast('Estudo "'+name+'" carregado');
-}
-function deleteStudy(){
-  const sel = document.getElementById('studyList');
-  const name = sel.value;
-  if(!name){ showToast('Selecione um estudo na lista para excluir'); return; }
-  if(!confirm('Excluir permanentemente o estudo "'+name+'"? Esta ação não pode ser desfeita.')) return;
-  let studies = {};
-  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  delete studies[name];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
-  scheduleCloudPush(studies);
-  loadStudyList();
-  showToast('Estudo excluído');
-}
-function newStudy(){
-  if(state.records.length>0 || state.stages.length>0){
-    if(!confirm('Começar um novo estudo? As etapas e registros atuais não salvos serão perdidos (estudos já salvos continuam na lista).')) return false;
-  }
-  state.stages=[]; state.records=[]; state.cycleQty={1:1}; state.currentCycle=1; state.notes='';
-  state.meta = { id:null, createdAt:null, updatedAt:null, lastSync:'', history:[{ ts:new Date().toISOString(), text:'Estudo criado' }] };
-  resetTimer();
-  document.getElementById('cycle').textContent='1';
-  document.getElementById('qty').value=1;
-  document.getElementById('studyName').value='';
-  document.getElementById('process').value='';
-  document.getElementById('operator').value='';
-  document.getElementById('observer').value='';
-  document.getElementById('notes').value='';
-  document.getElementById('studyList').value='';
-  renderStages(); renderRecords(); renderStats();
-  renderStudyMeta(); renderHistory();
-  showEditorTab('crono');
-  showToast('Novo estudo iniciado');
-  return true;
-}
-
-/* ---------- Navegação Dashboard ⇄ Editor ---------- */
-function goNewStudy(){
-  if(newStudy()===false) return;
-  saveStudy();
-  switchToEditor();
-}
-function switchToEditor(){
-  document.body.classList.remove('view-dashboard');
-  document.body.classList.add('view-editor');
-}
-function backToDashboard(){
-  document.body.classList.remove('view-editor');
-  document.body.classList.add('view-dashboard');
-  renderDashboard();
-}
-function openStudy(name){
-  document.getElementById('studyList').value = name;
-  loadSelectedStudy();
-  switchToEditor();
-}
-function showEditorTab(tab){
-  const main = document.getElementById('editorMain');
-  const hist = document.getElementById('editorHistory');
-  const tabCrono = document.getElementById('tabCrono');
-  const tabHist = document.getElementById('tabHist');
-  if(!main || !hist) return;
-  main.style.display = (tab==='hist') ? 'none' : '';
-  hist.style.display = (tab==='hist') ? '' : 'none';
-  if(tabCrono) tabCrono.classList.toggle('active', tab!=='hist');
-  if(tabHist) tabHist.classList.toggle('active', tab==='hist');
-  if(tab==='hist') renderHistory();
-}
-
-/* ---------- Dashboard ---------- */
-function loadAllStudies(){
-  let studies = {};
-  try{ studies = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  let changed = false;
-  Object.keys(studies).forEach(k=>{
-    const before = JSON.stringify(studies[k]);
-    ensureStudyMeta(studies[k], k);
-    if(JSON.stringify(studies[k])!==before) changed = true;
-  });
-  if(changed){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
-    scheduleCloudPush(studies);
-  }
-  return studies;
-}
-function persistStudies(studies){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
-  scheduleCloudPush(studies);
-}
-function duplicateStudy(name){
-  const studies = loadAllStudies();
-  const s = studies[name];
-  if(!s) return;
-  const clone = JSON.parse(JSON.stringify(s));
-  const now = new Date().toISOString();
-  clone.id = genId('study');
-  clone.createdAt = now;
-  clone.updatedAt = now;
-  clone.lastSync = '';
-  clone.history = [{ ts: now, text:'Estudo duplicado de "'+name+'"' }];
-  let newName = name+' (cópia)';
-  let i = 2;
-  while(studies[newName]){ newName = name+' (cópia '+i+')'; i++; }
-  studies[newName] = clone;
-  persistStudies(studies);
-  renderDashboard();
-  showToast('Estudo duplicado');
-}
-function deleteStudyCard(name){
-  if(!confirm('Excluir permanentemente o estudo "'+name+'"? Esta ação não pode ser desfeita.')) return;
-  const studies = loadAllStudies();
-  delete studies[name];
-  persistStudies(studies);
-  renderDashboard();
-  showToast('Estudo excluído');
-}
-function renderDashboard(){
-  const searchEl = document.getElementById('dashSearch');
-  const sortEl = document.getElementById('dashSort');
-  if(!searchEl || !sortEl) return;
-  const studies = loadAllStudies();
-  const q = (searchEl.value||'').toLowerCase().trim();
-  const sort = sortEl.value;
-  let list = Object.keys(studies).map(name=>({ name, ...studies[name] }));
-
-  if(q){
-    list = list.filter(s=>
-      (s.name||'').toLowerCase().includes(q) ||
-      (s.process||'').toLowerCase().includes(q) ||
-      (s.operator||'').toLowerCase().includes(q)
-    );
-  }
-  list.sort((a,b)=>{
-    if(sort==='az') return a.name.localeCompare(b.name);
-    if(sort==='oldest') return new Date(a.createdAt)-new Date(b.createdAt);
-    if(sort==='modified') return new Date(b.updatedAt)-new Date(a.updatedAt);
-    return new Date(b.createdAt)-new Date(a.createdAt);
-  });
-
-  let totalRecords=0, totalTime=0, lastModified=null;
-  Object.values(studies).forEach(s=>{
-    totalRecords += (s.records||[]).length;
-    totalTime += (s.records||[]).reduce((a,r)=>a+(Number(r.time)||0),0);
-    if(!lastModified || new Date(s.updatedAt) > new Date(lastModified.updatedAt)) lastModified = s;
-  });
-  const kpisEl = document.getElementById('dashKpis');
-  if(kpisEl){
-    kpisEl.innerHTML =
-      '<div class="kpi"><span class="kpi-label">Total de Estudos</span><span class="kpi-val">'+Object.keys(studies).length+'</span></div>'+
-      '<div class="kpi"><span class="kpi-label">Total de Registros</span><span class="kpi-val">'+totalRecords+'</span></div>'+
-      '<div class="kpi"><span class="kpi-label">Tempo Total Registrado</span><span class="kpi-val">'+toBR(totalTime)+'s</span></div>'+
-      '<div class="kpi"><span class="kpi-label">Último Estudo Modificado</span><span class="kpi-val" style="font-size:14px">'+(lastModified?escapeHtml(lastModified.name||''):'—')+'</span></div>';
-  }
-
-  const wrap = document.getElementById('studyCards');
-  if(!wrap) return;
-  if(list.length===0){
-    wrap.innerHTML = '<p class="empty">Nenhum estudo encontrado. Crie um novo estudo para começar.</p>';
-    return;
-  }
-  wrap.innerHTML = list.map(s=>{
-    const cycles = Object.keys(s.cycleQty||{}).length;
-    const safeName = s.name.replace(/'/g, "\\'");
-    return '<div class="study-card">'+
-      '<div class="study-card-head"><b>'+escapeHtml(s.name)+'</b></div>'+
-      '<div class="study-card-meta">'+
-        (s.process ? '<span>Processo: '+escapeHtml(s.process)+'</span>' : '')+
-        (s.operator ? '<span>Operador: '+escapeHtml(s.operator)+'</span>' : '')+
-        '<span>Criado: '+fmtDate(s.createdAt)+'</span>'+
-        '<span>Últ. edição: '+fmtDate(s.updatedAt)+'</span>'+
-        '<span>'+(s.records||[]).length+' registros · '+cycles+' ciclos</span>'+
-      '</div>'+
-      '<div class="study-card-actions">'+
-        '<button class="cta" onclick="openStudy(\''+safeName+'\')">Abrir</button>'+
-        '<button onclick="duplicateStudy(\''+safeName+'\')">Duplicar</button>'+
-        '<button class="danger" onclick="deleteStudyCard(\''+safeName+'\')">Excluir</button>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-}
-
-/* ---------- Tema Escuro ---------- */
-function toggleTheme(){
-  document.body.classList.toggle('dark-theme');
-  const isDark = document.body.classList.contains('dark-theme');
-  localStorage.setItem('crono_theme', isDark ? 'dark' : 'light');
-  const chk = document.getElementById('settingsThemeToggle');
-  if(chk) chk.checked = isDark;
-}
-function applySavedTheme(){
-  if(localStorage.getItem('crono_theme')==='dark') document.body.classList.add('dark-theme');
-}
-
-/* ---------- Configurações (modal) ---------- */
-function openSettings(){
-  const chk = document.getElementById('settingsThemeToggle');
-  if(chk) chk.checked = document.body.classList.contains('dark-theme');
-  document.getElementById('settingsModal').style.display = 'flex';
-}
-function closeSettings(){
-  document.getElementById('settingsModal').style.display = 'none';
-}
-
-/* ---------- Menu do topo ---------- */
-function toggleMenu(){
-  const dd = document.getElementById('menuDropdown');
-  const btn = document.getElementById('menuBtn');
-  const open = dd.classList.toggle('open');
-  if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-function closeMenu(){
-  const dd = document.getElementById('menuDropdown');
-  const btn = document.getElementById('menuBtn');
-  dd.classList.remove('open');
-  if(btn) btn.setAttribute('aria-expanded', 'false');
-}
-document.addEventListener('click', (e)=>{
-  const wrap = document.getElementById('menuWrap');
-  if(wrap && !wrap.contains(e.target)) closeMenu();
-});
-document.addEventListener('keydown', (e)=>{
-  if(e.key==='Escape') closeMenu();
-});
-
-/* ---------- Administração (visível só para ADMIN_EMAIL) ---------- */
-async function logUserActivity(){
-  if(!currentUser) return;
-  try{
-    const { data: existing } = await sb.from('crono_user_activity')
-      .select('login_count').eq('user_id', currentUser.id).maybeSingle();
-    await sb.from('crono_user_activity').upsert({
-      user_id: currentUser.id,
-      email: currentUser.email,
-      last_seen: new Date().toISOString(),
-      login_count: (existing?.login_count || 0) + 1
-    }, { onConflict: 'user_id' });
-  }catch(e){
-    console.warn('Não foi possível registrar atividade do usuário:', e);
-  }
-}
-function updateAdminButtonVisibility(){
-  const btn = document.getElementById('btnAdmin');
-  if(!btn) return;
-  btn.style.display = (currentUser && currentUser.email === ADMIN_EMAIL) ? '' : 'none';
-}
-async function openAdminPanel(){
-  if(!currentUser || currentUser.email !== ADMIN_EMAIL){ showToast('Acesso restrito'); return; }
-  document.getElementById('adminModal').style.display = 'flex';
-  await loadAdminUsers();
-}
-function closeAdminPanel(){
-  document.getElementById('adminModal').style.display = 'none';
-}
-async function loadAdminUsers(){
-  const summary = document.getElementById('adminSummary');
-  const tbody = document.getElementById('adminUsersTable');
-  summary.textContent = 'Carregando…';
-  tbody.innerHTML = '';
-  const { data, error } = await sb.from('crono_user_activity').select('*').order('last_seen', { ascending:false });
-  if(error){
-    summary.textContent = 'Erro ao carregar (verifique se a tabela crono_user_activity foi criada no Supabase): '+error.message;
-    return;
-  }
-  const rows = data || [];
-  summary.textContent = 'Total de usuários registrados: '+rows.length;
-  tbody.innerHTML = rows.length ? rows.map(r=>
-    '<tr><td>'+escapeHtml(r.email)+'</td>'+
-    '<td>'+fmtDate(r.first_seen)+'</td>'+
-    '<td>'+fmtDate(r.last_seen)+'</td>'+
-    '<td>'+(r.login_count||0)+'</td></tr>'
-  ).join('') : '<tr><td colspan="4" class="empty">Nenhum usuário registrado ainda.</td></tr>';
-}
-
-/* ---------- Modo Campo ---------- */
-function toggleField(){
-  document.body.classList.toggle('field');
-  const active = document.body.classList.contains('field');
-  const btn = document.getElementById('btnField');
-  btn.textContent = active ? 'Sair do Modo Campo' : 'Modo Campo';
-  btn.classList.toggle('active', active);
-}
-
-/* ---------- Exportação CSV (formato Excel BR: ; , BOM) ---------- */
-function exportCSV(){
-  const name = document.getElementById('studyName').value || 'Estudo';
-  const process = document.getElementById('process').value;
-  const operator = document.getElementById('operator').value;
-  const observer = document.getElementById('observer').value;
-  const now = new Date().toLocaleString('pt-BR');
-
-  const lines = [];
-  lines.push(['Estudo',name].join(';'));
-  lines.push(['Processo',process].join(';'));
-  lines.push(['Operador',operator].join(';'));
-  lines.push(['Cronoanalista',observer].join(';'));
-  lines.push(['Data da exportação',now].join(';'));
-  lines.push('');
-  lines.push(['Ciclo','Etapa','Tipo','Tempo(s)','Qtd'].join(';'));
-  state.records.forEach(r=>{
-    lines.push([r.cycle, r.stageName, r.type, toBR(r.time), toBR(r.qty??1,0)].join(';'));
-  });
-  lines.push('');
-  lines.push('Resumo por Etapa');
-  lines.push(['Etapa','Tipo','Ocorrências','Tempo Total(s)','Tempo Médio(s)','Tempo Mín(s)','Tempo Máx(s)'].join(';'));
-  computeStageSummary().forEach(s=>{
-    lines.push([s.name,s.type,s.count,toBR(s.total),toBR(s.avg),toBR(s.min===Infinity?0:s.min),toBR(s.max===-Infinity?0:s.max)].join(';'));
-  });
-  lines.push('');
-  const total = state.records.reduce((a,r)=>a+r.time,0);
-  const qtyTotal = state.records.reduce((a,r)=>a+(Number(r.qty)||0),0);
-  const hours = total/3600;
-  const prod = (qtyTotal>0 && hours>0) ? qtyTotal/hours : 0;
-  lines.push(['Tempo Total(s)',toBR(total)].join(';'));
-  lines.push(['Quantidade Total',toBR(qtyTotal,0)].join(';'));
-  lines.push(['Produtividade (un/h)',toBR(prod)].join(';'));
-
-  const notes = document.getElementById('notes').value.trim();
-  if(notes){
-    lines.push('');
-    lines.push('Observações / Oportunidades Observadas');
-    notes.split('\n').forEach(l=>lines.push(l.replace(/;/g,',')));
-  }
-
-  const csv = lines.join('\r\n');
-  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (name.replace(/[^a-z0-9_-]+/gi,'_')||'CronoAnalise')+'.csv';
-  a.click();
-  logHistory('Exportado CSV');
-  saveStudy();
-  showToast('CSV exportado');
-}
-
-/* ---------- Autenticação ---------- */
-function setAuthError(msg){ document.getElementById('authError').textContent = msg||''; }
-function setAuthMsg(msg){ document.getElementById('authMsg').textContent = msg||''; }
-
-function traduzErroAuth(msg){
-  if(/Invalid login credentials/i.test(msg)) return 'E-mail ou senha incorretos.';
-  if(/already registered|User already registered/i.test(msg)) return 'Este e-mail já tem conta. Tente entrar.';
-  if(/Password should be|at least 6/i.test(msg)) return 'Senha muito curta (mínimo 6 caracteres).';
-  if(/Unable to validate email/i.test(msg)) return 'E-mail inválido.';
-  return msg;
-}
-
-async function doSignIn(){
-  setAuthError(''); setAuthMsg('');
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  if(!email || !pass){ setAuthError('Preencha e-mail e senha.'); return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if(error) setAuthError(traduzErroAuth(error.message));
-}
-async function doSignUp(){
-  setAuthError(''); setAuthMsg('');
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  if(!email || !pass){ setAuthError('Preencha e-mail e senha.'); return; }
-  if(pass.length<6){ setAuthError('A senha precisa ter pelo menos 6 caracteres.'); return; }
-  const { data, error } = await sb.auth.signUp({ email, password: pass });
-  if(error){ setAuthError(traduzErroAuth(error.message)); return; }
-  if(data.user && !data.session){
-    setAuthMsg('Conta criada! Verifique seu e-mail para confirmar antes de entrar.');
-  }
-}
-async function doSignOut(){
-  await sb.auth.signOut();
-}
-
-/* ---------- Sincronização com a nuvem ---------- */
-async function loadCloudStudies(){
-  const { data, error } = await sb.from('crono_studies').select('data').eq('user_id', currentUser.id).maybeSingle();
-  if(error){ console.warn('Erro ao carregar da nuvem:', error); return null; }
-  return data ? data.data : null;
-}
-async function pushCloudStudies(studies){
-  if(!currentUser) return;
-  setAutosaveState('saving');
-  const { error } = await sb.from('crono_studies').upsert({ user_id: currentUser.id, data: studies, updated_at: new Date().toISOString() });
-  if(error){
-    console.warn('Erro ao salvar na nuvem:', error);
-    setAutosaveState('error');
-    return;
-  }
-  setAutosaveState('saved');
-  const name = document.getElementById('studyName') ? document.getElementById('studyName').value : '';
-  if(name && studies[name]){
-    studies[name].lastSync = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(studies));
-    if(state.meta) state.meta.lastSync = studies[name].lastSync;
-  }
-}
-function scheduleCloudPush(studies){
-  setAutosaveState('pending');
-  clearTimeout(cloudPushTimer);
-  cloudPushTimer = setTimeout(()=>pushCloudStudies(studies), 700);
-}
-
-async function initAfterLogin(){
-  document.getElementById('userEmail').textContent = currentUser.email;
-  updateAdminButtonVisibility();
-  logUserActivity();
-  const cloud = await loadCloudStudies();
-  let local = {};
-  try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-  if(cloud && Object.keys(cloud).length){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud));
-  } else if(Object.keys(local).length){
-    await pushCloudStudies(local);
-  } else {
-    migrateOldData();
-    try{ local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){}
-    if(Object.keys(local).length) await pushCloudStudies(local);
-  }
-  loadStudyList();
-  document.body.classList.remove('view-editor');
-  document.body.classList.add('view-dashboard');
-  renderDashboard();
-  showToast('Estudos sincronizados ✓');
-}
-
-sb.auth.onAuthStateChange(async (event, session)=>{
-  if(session && session.user){
-    currentUser = session.user;
-    document.body.classList.add('authed');
-    setAuthError(''); setAuthMsg('');
-    await initAfterLogin();
-  } else {
-    currentUser = null;
-    document.body.classList.remove('authed');
-    document.body.classList.remove('view-editor');
-    document.body.classList.add('view-dashboard');
-    document.getElementById('authPass').value = '';
-    updateAdminButtonVisibility();
-    closeAdminPanel();
-  }
-});
-applySavedTheme();
-</script>
 </body>
 </html>
