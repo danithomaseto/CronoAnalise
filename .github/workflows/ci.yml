@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verificar sintaxe dos módulos
+        run: for f in js/*.js js/core/*.js sw.js; do node --check "$f"; done
+      - name: Validar JSON (manifest e vercel.json)
+        run: node -e "for (const f of ['manifest.webmanifest','vercel.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+      - name: Testes de lógica
+        run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar ESLint e TypeScript (só para o CI)
+        run: npm i --no-save eslint@9 typescript@5
+      - name: ESLint + checagem de tipos (JSDoc)
+        run: npx eslint . && npx tsc -p jsconfig.json
+
+  sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Postgres embutido (só para o CI)
+        run: npm i --no-save embedded-postgres pg
+      - name: Validar schema.sql e migrações num Postgres real
+        run: npm run test:sql
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright (só para o teste, não vai para o deploy)
+        run: npm i --no-save playwright && npx playwright install --with-deps chromium
+      - name: Testes de ponta a ponta (Supabase simulado)
+        run: npm run test:e2e
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: tests/e2e/out/
+          if-no-files-found: ignore
+
+  staging:
+    runs-on: ubuntu-latest
+    env:
+      STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+      STAGING_EMAIL: ${{ secrets.STAGING_EMAIL }}
+      STAGING_PASSWORD: ${{ secrets.STAGING_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verificar credenciais de homologação
+        id: creds
+        run: |
+          if [ -n "$STAGING_SUPABASE_URL" ]; then echo "ok=true" >> "$GITHUB_OUTPUT";
+          else echo "Sem segredos STAGING_*: teste contra Supabase de homologação pulado."; fi
+      - name: Instalar Playwright
+        if: steps.creds.outputs.ok == 'true'
+        run: npm i --no-save playwright && npx playwright install --with-deps chromium
+      - name: Teste de fumaça contra o Supabase de homologação
+        if: steps.creds.outputs.ok == 'true'
+        run: npm run test:staging
