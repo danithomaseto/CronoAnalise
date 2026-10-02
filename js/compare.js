@@ -11,8 +11,9 @@ export function initCompare() {
 }
 
 export function openCompare(preselectId) {
-  const list = storage.listStudies().slice().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  if (list.length < 2) { showToast('Crie pelo menos dois estudos para comparar'); return; }
+  // comparação de cronoanálises (a amostragem tem os próprios indicadores)
+  const list = storage.listStudies().filter(s => s.kind !== 'sampling').sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  if (list.length < 2) { showToast('Crie pelo menos dois estudos de cronoanálise para comparar'); return; }
   const opts = list.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>').join('');
   $('compareA').innerHTML = opts;
   $('compareB').innerHTML = opts;

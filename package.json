@@ -2,13 +2,14 @@
   "name": "cronoanalise",
   "private": true,
   "type": "module",
-  "description": "Ferramenta web de cronoanálise (time & motion study)",
+  "description": "Ferramenta web de cronoanálise (time & motion study) e amostragem do trabalho",
   "scripts": {
     "start": "npx --yes serve -l 5173 .",
     "test": "node --test",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:sql": "node tests/sql/validate.mjs",
     "lint": "eslint . && tsc -p jsconfig.json",
-    "test:staging": "node tests/staging/smoke.mjs"
+    "test:staging": "node tests/staging/smoke.mjs",
+    "test:visual": "node tests/visual/run.mjs"
   }
 }

@@ -1,7 +1,8 @@
 /* Editor — etapas: cadastro, edição, ordem e exclusão. */
 
-import { uid } from './core/format.js';
+import { uid, escapeHtml, toBR } from './core/format.js';
 import { sortStages, nextStagePos } from './core/model.js';
+import { WH_FACTORS, WH_KEYS, whRating, normalizeWh } from './core/westinghouse.js';
 import { $, openModal, closeModal } from './ui.js';
 import { S, persist, refresh, nowIso } from './editor.js';
 import * as timer from './editor-timer.js';
@@ -11,6 +12,25 @@ let editingId = null;
 export function init() {
   $('stageForm').addEventListener('submit', e => { e.preventDefault(); add(); });
   $('stageEditForm').addEventListener('submit', e => { e.preventDefault(); saveEdit(); });
+  // Avaliação Westinghouse: um seletor por fator
+  $('whFields').innerHTML = WH_KEYS.map(k => {
+    const f = WH_FACTORS[k];
+    return '<label>' + f.label + '<select data-wh="' + k + '"><option value="">—</option>' +
+      f.levels.map(([lv, v, name]) => '<option value="' + lv + '">' + lv + ' · ' + escapeHtml(name) + ' (' + (v > 0 ? '+' : '') + toBR(v * 100, 0) + '%)</option>').join('') +
+      '</select></label>';
+  }).join('');
+  $('whFields').addEventListener('change', updateWhResult);
+}
+
+function readWh() {
+  const raw = {};
+  document.querySelectorAll('#whFields [data-wh]').forEach(sel => { if (sel.value) raw[sel.dataset.wh] = sel.value; });
+  return normalizeWh(raw);
+}
+
+function updateWhResult() {
+  const r = whRating(readWh());
+  $('whResult').textContent = r === null ? 'usa o do estudo' : toBR(r, 0) + '%';
 }
 
 function add() {
@@ -45,6 +65,12 @@ export function openEdit(id) {
   $('editStageName').value = s.name;
   $('editStageType').value = s.type;
   $('editStageOutput').checked = !!s.countsOutput;
+  $('editStageStation').value = s.station || '';
+  const stations = [...new Set(S.current.stages.map(x => x.station).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+  $('stationList').innerHTML = stations.map(n => '<option value="' + escapeHtml(n) + '"></option>').join('');
+  document.querySelectorAll('#whFields [data-wh]').forEach(sel => { sel.value = (s.wh && s.wh[sel.dataset.wh]) || ''; });
+  $('whBox').open = !!s.wh;
+  updateWhResult();
   updateMoveButtons();
   openModal('stageEditModal', { focus: 'editStageName', onClose: () => { editingId = null; } });
 }
@@ -89,6 +115,10 @@ function saveEdit() {
   s.type = newType;
   s.u = t;
   if ($('editStageOutput').checked) s.countsOutput = true; else delete s.countsOutput;
+  const station = $('editStageStation').value.trim().slice(0, 60);
+  if (station) s.station = station; else delete s.station;
+  const wh = readWh();
+  if (wh) s.wh = wh; else delete s.wh;
   S.current.records.forEach(r => {
     if (r.stageId === s.id && (r.stageName !== newName || r.type !== newType)) { r.stageName = newName; r.type = newType; r.u = t; }
   });
@@ -126,7 +156,8 @@ export function render() {
     name.textContent = s.name;
     const type = document.createElement('span');
     type.className = 'stage-type';
-    type.textContent = s.type + (s.countsOutput ? ' · 📦 produção' : '');
+    const r = whRating(s.wh);
+    type.textContent = s.type + (s.countsOutput ? ' · 📦 produção' : '') + (s.station ? ' · ' + s.station : '') + (r !== null ? ' · ritmo ' + toBR(r, 0) + '%' : '');
     btn.append(name, type);
     if (i < 9) {
       const key = document.createElement('span');

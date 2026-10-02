@@ -1,21 +1,18 @@
 /* Editor — indicadores, takt time, resumo por etapa e gráficos. */
 
 import { CHART_TYPE_ORDER } from './core/stats.js';
-import { yamazumiSVG, paretoSVG, cycleTimeSVG, legendHTML, typesPresent } from './core/charts.js';
+import { yamazumiSVG, paretoSVG, cycleTimeSVG, legendHTML, typesPresent, MAX_BARS } from './core/charts.js';
 import { toBR, escapeHtml } from './core/format.js';
 import { $ } from './ui.js';
+import { bindTips } from './chart-tips.js';
 import { S, getStats } from './editor.js';
 
 let lastStats = null;
 let resizeTimer = null;
+let chartsFrame = 0;
 
 export function init() {
-  const host = $('stats');
-  host.addEventListener('pointerover', onTipIn);
-  host.addEventListener('pointermove', onTipMove);
-  host.addEventListener('pointerout', onTipOut);
-  host.addEventListener('focusin', onTipIn);
-  host.addEventListener('focusout', onTipOut);
+  bindTips($('stats'));
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => relayout(), 150);
@@ -45,6 +42,7 @@ export function render(st) {
     kpis += kpi('Operadores Necessários', toBR(st.operatorsNeeded, 2), 'tempo por unidade ÷ takt');
   }
   if (st.interruptionCount) kpis += kpi('Interrupções', String(st.interruptionCount), toBR(st.interruptionTime) + ' s fora dos cálculos');
+  if (st.trend) kpis += trendKpi(st.trend);
 
   const bars = CHART_TYPE_ORDER.map(t => {
     const v = st.byType[t] || 0;
@@ -70,10 +68,10 @@ export function render(st) {
       '<td>' + toBR(s.min) + '</td><td>' + toBR(s.max) + '</td><td>' + toBR(s.sd) + '</td>' +
       '<td>' + toBR(s.cv, 1) + '</td><td>' + nCell + '</td><td>' + toBR(s.qty, 0) + '</td>' +
       '<td>' + toBR(s.productivity) + '</td>' +
-      (std ? '<td>' + toBR(s.normal) + '</td><td>' + toBR(s.standard) + '</td>' : '') +
+      (std ? '<td>' + toBR(s.rating, 0) + (s.stageRating ? ' <span title="Avaliação Westinghouse da etapa">W</span>' : '') + '</td><td>' + toBR(s.normal) + '</td><td>' + toBR(s.standard) + '</td>' : '') +
       '</tr>';
   }).join('');
-  const cols = std ? 14 : 12;
+  const cols = std ? 15 : 12;
 
   const notes = [
     'n nec. = ciclos necessários para ' + st.confidence + '% de confiança e erro de ±' + st.errorPct + '% (ajuste em Configurações). ✓ = amostra suficiente; ⚠ = faltam ciclos.'
@@ -87,12 +85,25 @@ export function render(st) {
     '<div class="table-wrap"><table class="summary-table"><thead><tr>' +
       '<th>Etapa</th><th>Tipo</th><th>Ocorr.</th><th>Total(s)</th><th>Média(s)</th><th>Mín(s)</th><th>Máx(s)</th>' +
       '<th title="Desvio padrão">DP(s)</th><th title="Coeficiente de variação">CV%</th><th title="Ciclos necessários">n nec.</th>' +
-      '<th>Qtd</th><th>un/h</th>' + (std ? '<th>T. Normal(s)</th><th>T. Padrão(s)</th>' : '') +
+      '<th>Qtd</th><th>un/h</th>' + (std ? '<th title="Fator de ritmo (W = avaliação Westinghouse da etapa)">Ritmo%</th><th>T. Normal(s)</th><th>T. Padrão(s)</th>' : '') +
     '</tr></thead><tbody>' + (rows || '<tr><td colspan="' + cols + '" class="empty">Sem registros ainda</td></tr>') + '</tbody></table></div>' +
     '<p class="hint" style="margin:10px 0 0">' + notes.join('<br>') + '</p>' +
-    '<div id="charts" class="charts"></div>' +
-    '<div id="chartTip" class="chart-tip" role="tooltip" hidden></div>';
-  renderCharts();
+    '<div id="charts" class="charts"></div>';
+  // gráficos no próximo quadro: o toque na etapa responde antes (marcações rápidas
+  // em sequência desenham os gráficos uma vez só)
+  cancelAnimationFrame(chartsFrame);
+  chartsFrame = requestAnimationFrame(() => { chartsFrame = 0; renderCharts(); });
+}
+
+/* Tendência do tempo de ciclo: direção em texto (não só cor), com a curva de
+   aprendizado quando há queda. */
+function trendKpi(tr) {
+  if (tr.direction === 'flat') return kpi('Tendência do Ciclo', 'estável', 'sem queda ou alta significativa (' + tr.n + ' ciclos)', true);
+  const down = tr.direction === 'down';
+  const val = (down ? '▼ ' : '▲ ') + toBR(Math.abs(tr.slope), 1) + ' s/ciclo';
+  const note = (down ? 'queda de ' : 'alta de ') + toBR(Math.abs(tr.changePct), 0) + '% no estudo' +
+    (tr.learningRate ? ' · curva de aprendizado ≈ ' + toBR(tr.learningRate, 0) + '%' : down ? '' : ' · possível fadiga');
+  return kpi('Tendência do Ciclo', '<span class="status"><span class="ico ' + (down ? 'good' : 'bad') + '">' + (down ? '▼' : '▲') + '</span> ' + val.slice(2) + '</span>', note, true);
 }
 
 /* ---------- Gráficos ---------- */
@@ -109,15 +120,17 @@ function renderCharts(forceWidth) {
   const width = Math.max(260, Math.min(1000, Math.floor(forceWidth || host.clientWidth || 600)));
   const types = typesPresent(st.cycles.map(c => c.byType));
   const parts = [];
+  const lastN = st.cycles.length > MAX_BARS ? ' · últimos ' + MAX_BARS + ' de ' + st.cycles.length + ' ciclos' : '';
   parts.push(chartCard('Composição do tempo por ciclo (Yamazumi)',
-    st.taktPerCycle > 0 ? 'linha: takt × unidades por ciclo' : 'tempo de cada ciclo por tipo de atividade',
+    (st.taktPerCycle > 0 ? 'linha: takt × unidades por ciclo' : 'tempo de cada ciclo por tipo de atividade') + lastN,
     legendHTML(types), yamazumiSVG(st, { width, height: 260 })));
   parts.push(chartCard('Pareto das etapas',
     st.vitalFew > 0 && st.vitalFew < st.pareto.length ? 'as ' + st.vitalFew + ' primeiras etapas somam 80% do tempo (linha)' : 'etapas por tempo total',
     legendHTML(typesPresent([st.byType])), paretoSVG(st, { width })));
   if (st.cycles.length >= 2) {
     parts.push(chartCard('Tempo de ciclo',
-      'faixa: média ± 2 desvios-padrão' + (st.outlierCycles.size ? ' · ' + st.outlierCycles.size + ' ciclo(s) fora da faixa' : ''),
+      'faixa: média ± 2 desvios-padrão' + (st.outlierCycles.size ? ' · ' + st.outlierCycles.size + ' ciclo(s) fora da faixa' : '') +
+        (st.trend && st.trend.significant ? ' · tracejado: tendência' : ''),
       '', cycleTimeSVG(st, { width, height: 240 })));
   }
   host.innerHTML = parts.join('');
@@ -126,51 +139,9 @@ function renderCharts(forceWidth) {
 /* Redesenha os gráficos na largura atual (ou numa largura fixa, para imprimir). */
 export function relayout(forceWidth) {
   if (!S.current || $('editorMain').hidden) return;
+  cancelAnimationFrame(chartsFrame);
+  chartsFrame = 0;
   renderCharts(forceWidth);
-}
-
-/* Tooltip compartilhado: marcas com data-tip (mouse, toque e teclado). */
-function onTipIn(e) {
-  const el = e.target.closest && e.target.closest('[data-tip]');
-  if (!el) return;
-  const tip = $('chartTip');
-  tip.textContent = el.getAttribute('data-tip');
-  tip.hidden = false;
-  el.classList.add('hover');
-  const svg = el.ownerSVGElement;
-  const cross = svg && svg.querySelector('.crosshair');
-  if (cross && el.dataset.x) {
-    cross.setAttribute('x1', el.dataset.x);
-    cross.setAttribute('x2', el.dataset.x);
-    cross.setAttribute('visibility', 'visible');
-  }
-  position(e, el);
-}
-
-function onTipMove(e) {
-  const el = e.target.closest && e.target.closest('[data-tip]');
-  if (el) position(e, el);
-}
-
-function onTipOut(e) {
-  const el = e.target.closest && e.target.closest('[data-tip]');
-  if (!el) return;
-  el.classList.remove('hover');
-  $('chartTip').hidden = true;
-  const svg = el.ownerSVGElement;
-  const cross = svg && svg.querySelector('.crosshair');
-  if (cross) cross.setAttribute('visibility', 'hidden');
-}
-
-function position(e, el) {
-  const tip = $('chartTip');
-  const host = $('stats').getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  const x = (e.clientX && e.type !== 'focusin' ? e.clientX : r.left + r.width / 2) - host.left;
-  const y = (e.clientY && e.type !== 'focusin' ? e.clientY : r.top) - host.top;
-  const w = tip.offsetWidth || 160;
-  tip.style.left = Math.max(4, Math.min(host.width - w - 4, x - w / 2)) + 'px';
-  tip.style.top = Math.max(0, y - (tip.offsetHeight || 28) - 12) + 'px';
 }
 
 export function currentStats() {

@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>CronoAnálise</title>
-<meta name="description" content="Cronoanálise (estudo de tempos e métodos) em tempo real: cronometre etapas, acompanhe indicadores e exporte para o Excel.">
-<meta name="theme-color" content="#1c2128">
+<meta name="description" content="Cronoanálise (estudo de tempos e métodos) e amostragem do trabalho em tempo real: cronometre etapas, balanceie a linha, acompanhe indicadores e exporte para o Excel.">
+<meta name="theme-color" content="#FFCC00">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/lexend.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/styles.css">
 <script src="js/theme-init.js"></script>
 <script src="vendor/supabase-js-2.117.2.js" defer></script>
@@ -22,29 +23,66 @@
 
 <!-- ===================== LOGIN ===================== -->
 <div id="authOverlay" class="auth-overlay">
-  <form class="auth-box" id="authForm" novalidate>
-    <div class="brand"><b>CronoAnálise</b></div>
-    <p class="hint" style="margin:0 0 6px">Entre com e-mail e senha. Seus estudos ficam salvos na nuvem e aparecem em qualquer computador.</p>
-    <label>E-mail<input id="authEmail" type="email" placeholder="voce@email.com" autocomplete="username" required></label>
-    <label>Senha<input id="authPass" type="password" placeholder="mínimo 6 caracteres" autocomplete="current-password" minlength="6" required></label>
-    <div id="authError" class="auth-error" role="alert"></div>
-    <p id="authMsg" class="auth-msg" role="status"></p>
-    <div class="auth-actions">
-      <button type="submit" class="cta">Entrar</button>
-      <button type="button" data-action="sign-up">Criar conta</button>
+  <main class="login" aria-labelledby="loginTitle">
+    <div class="login-brand" id="loginBrand">
+      <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect x="226" y="70" width="60" height="44" rx="12"/><rect x="352" y="120" width="44" height="34" rx="10" transform="rotate(45 374 137)"/><circle cx="256" cy="286" r="150" fill="none" stroke-width="40"/><path d="M256 286 L256 176" stroke-width="34" stroke-linecap="round"/><circle cx="256" cy="286" r="24"/></svg>
+      <span class="brand-word">CronoAnálise</span>
     </div>
-    <button type="button" class="link-btn" data-action="forgot-password">Esqueci minha senha</button>
+    <h1 class="login-title" id="loginTitle">CronoAnalise System</h1>
+    <form class="login-form" id="authForm" novalidate>
+      <label class="login-label" for="authEmail">E-mail</label>
+      <div class="login-input">
+        <svg class="login-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm0 14a8 8 0 0 1-6.2-2.9C7 15.4 9.4 14.5 12 14.5s5 .9 6.2 2.6A8 8 0 0 1 12 20Z"/></svg>
+        <input id="authEmail" type="email" autocomplete="username" required placeholder="nome.sobrenome@empresa.com">
+      </div>
+      <label class="login-label" for="authPass">Senha</label>
+      <div class="login-input">
+        <svg class="login-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1Zm2 0h6V7a3 3 0 0 0-6 0v3Zm-2 2v8h10v-8H7Zm5 2a1.5 1.5 0 0 1 .8 2.8V18h-1.6v-1.2A1.5 1.5 0 0 1 12 14Z"/></svg>
+        <input id="authPass" type="password" autocomplete="current-password" minlength="6" required>
+        <button type="button" class="eye-btn" id="btnShowPass" data-action="toggle-password" aria-label="Mostrar senha" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 8.7 3.3 10 7-1.3 3.7-5 7-10 7S3.3 15.7 2 12c1.3-3.7 5-7 10-7Zm0 2c-3.6 0-6.5 2.2-7.8 5 1.3 2.8 4.2 5 7.8 5s6.5-2.2 7.8-5c-1.3-2.8-4.2-5-7.8-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></svg>
+        </button>
+      </div>
+      <div id="authError" class="auth-error" role="alert"></div>
+      <p id="authMsg" class="auth-msg" role="status"></p>
+      <button type="submit" class="login-submit">Entrar</button>
+    </form>
+    <hr class="login-sep">
+    <button type="button" class="ms-btn" id="btnMicrosoft" data-action="sign-in-microsoft">
+      <span id="msLabel">Acesso com e-mail DHL</span>
+      <svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+    </button>
+    <p class="login-links"><button type="button" class="link-plain" data-action="forgot-password">Esqueceu a senha? <span class="u">Clique aqui.</span></button></p>
+    <p class="login-links small"><button type="button" class="link-plain" data-action="sign-up">Não tem conta? <span class="u">Criar conta</span></button></p>
+    <footer class="login-footer"><span id="loginFooter">© 2026 CronoAnalise System</span> · <button type="button" class="link-plain" data-action="open-privacy">Privacidade</button></footer>
+  </main>
+</div>
+
+<!-- ===================== Verificação em duas etapas (login) ===================== -->
+<div id="mfaOverlay" class="auth-overlay" hidden>
+  <form class="login" id="mfaForm" aria-labelledby="mfaTitle">
+    <h1 class="login-title" id="mfaTitle">Verificação em duas etapas</h1>
+    <p class="login-hint">Digite o código de 6 dígitos do seu aplicativo autenticador (Microsoft Authenticator, Google Authenticator…).</p>
+    <label class="login-label" for="mfaCode">Código</label>
+    <div class="login-input"><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <div id="mfaError" class="auth-error" role="alert"></div>
+    <button type="submit" class="login-submit">Verificar</button>
+    <p class="login-links"><button type="button" class="link-plain" data-action="sign-out"><span class="u">Cancelar e sair</span></button></p>
   </form>
 </div>
 
 <!-- ===================== TOPO ===================== -->
 <header class="topbar">
-  <div class="brand"><b>CronoAnálise</b></div>
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect x="226" y="70" width="60" height="44" rx="12"/><rect x="352" y="120" width="44" height="34" rx="10" transform="rotate(45 374 137)"/><circle cx="256" cy="286" r="150" fill="none" stroke-width="40"/><path d="M256 286 L256 176" stroke-width="34" stroke-linecap="round"/><circle cx="256" cy="286" r="24"/></svg>
+    <b>CronoAnálise</b>
+  </div>
   <div id="syncIndicator" class="autosave-indicator" aria-live="polite">
     <span id="syncStatus" class="autosave-status as-saved">✔ Salvo</span>
     <span id="syncTime" class="autosave-time"></span>
   </div>
   <div class="menu-wrap" id="menuWrap">
+    <span id="liveBadge" class="live-badge" hidden title="Recebendo alterações de outros aparelhos em tempo real">● ao vivo</span>
     <span id="userEmail" class="user-email"></span>
     <button type="button" class="menu-btn" id="menuBtn" data-action="toggle-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menuDropdown" title="Menu">☰</button>
     <div class="menu-dropdown" id="menuDropdown">
@@ -52,10 +90,16 @@
       <button type="button" class="view-editor-only" id="btnField" data-action="toggle-field">Modo Campo</button>
       <button type="button" class="view-editor-only" data-action="manual-save">Salvar</button>
       <button type="button" data-action="new-study">Novo Estudo</button>
+      <button type="button" data-action="new-sampling">Nova Amostragem do Trabalho</button>
       <button type="button" class="view-editor-only" data-action="export-xlsx">Exportar Excel (.xlsx)</button>
       <button type="button" class="view-editor-only" data-action="export-csv">Exportar CSV</button>
+      <button type="button" class="view-editor-only" data-action="share-file">📤 Enviar arquivo (Teams, e-mail…)</button>
+      <button type="button" class="view-editor-only" data-action="export-onedrive">☁ Salvar no OneDrive</button>
       <button type="button" class="view-editor-only" data-action="print">Relatório / PDF</button>
+      <button type="button" class="view-editor-only" data-action="print-a3">🧾 Relatório A3</button>
+      <button type="button" class="view-editor-only" data-action="open-photos">📷 Fotos do estudo</button>
       <button type="button" class="view-editor-only" id="btnShare" data-action="share" hidden>👥 Compartilhar</button>
+      <button type="button" data-action="open-teams">🏢 Times</button>
       <button type="button" id="btnTheme" data-action="toggle-theme">🌙 Tema Escuro</button>
       <button type="button" data-action="open-settings">⚙ Configurações</button>
       <button type="button" id="btnAdmin" data-action="open-admin" hidden>👤 Administração</button>
@@ -69,10 +113,11 @@
 
   <section class="panel dash-hero">
     <button type="button" class="cta big-cta" data-action="new-study">➕ Novo Estudo</button>
+    <button type="button" class="big-cta brand-btn" data-action="new-sampling" title="Observações em horários aleatórios para estimar a % de tempo produtivo">🎲 Amostragem do Trabalho</button>
   </section>
 
   <section class="panel">
-    <h2>Visão Geral</h2>
+    <h2 id="dashKpisTitle">Visão Geral</h2>
     <div id="dashKpis" class="kpi-grid"></div>
   </section>
 
@@ -80,6 +125,11 @@
     <h2>Estudos Recentes</h2>
     <div class="dash-toolbar">
       <input id="dashSearch" type="search" placeholder="Pesquisar estudo..." aria-label="Pesquisar estudo">
+      <select id="dashFilter" aria-label="Filtrar estudos">
+        <option value="all">Todos os estudos</option>
+        <option value="mine">Meus estudos</option>
+        <option value="shared">Compartilhados comigo</option>
+      </select>
       <button type="button" id="btnCompare" data-action="compare" title="Comparar dois estudos (antes × depois)">⚖ Comparar</button>
       <select id="dashSort" aria-label="Ordenar estudos">
         <option value="recent">Mais recente</option>
@@ -99,6 +149,7 @@
   <div class="editor-toolbar">
     <div class="editor-tabs" role="tablist">
       <button type="button" id="tabCrono" class="tab-btn active" role="tab" aria-selected="true" data-action="tab" data-tab="crono">Cronômetro</button>
+      <button type="button" id="tabA3" class="tab-btn" role="tab" aria-selected="false" data-action="tab" data-tab="a3">A3</button>
       <button type="button" id="tabHist" class="tab-btn" role="tab" aria-selected="false" data-action="tab" data-tab="hist">Histórico</button>
     </div>
   </div>
@@ -108,14 +159,14 @@
   <div class="print-header"><h1 id="printTitle"></h1><p id="printDate"></p></div>
 
   <section class="panel" data-field-hide>
-    <h2>Estudo</h2>
+    <h2 id="studyPanelTitle">Estudo</h2>
     <div class="form-grid">
       <label><span data-label="name">Nome do estudo</span><input id="studyName" data-field="name" placeholder="Ex.: Separação Linha A" autocomplete="off"></label>
       <label><span data-label="process">Processo</span><input id="process" data-field="process" placeholder="Processo" autocomplete="off"></label>
       <label><span data-label="operator">Usuário LMS</span><input id="operator" data-field="operator" placeholder="Usuário LMS" autocomplete="off"></label>
       <label><span data-label="observer">Champion OMS</span><input id="observer" data-field="observer" placeholder="Champion OMS" autocomplete="off"></label>
     </div>
-    <details class="std-params" id="stdParams">
+    <details class="std-params" id="stdParams" data-kind="time">
       <summary>Parâmetros: tempo padrão e takt time (opcional)</summary>
       <div class="form-grid">
         <label>Fator de ritmo (%)<input id="rating" data-field="rating" inputmode="decimal" placeholder="100" autocomplete="off"></label>
@@ -123,7 +174,7 @@
         <label>Demanda (unid. por período)<input id="demand" data-field="demand" inputmode="decimal" placeholder="ex.: 480" autocomplete="off"></label>
         <label>Tempo disponível (min por período)<input id="availableMin" data-field="availableMin" inputmode="decimal" placeholder="ex.: 440" autocomplete="off"></label>
       </div>
-      <p class="hint" style="margin:0">Tempo normal = tempo médio × ritmo. Tempo padrão = tempo normal × (1 + tolerâncias).
+      <p class="hint" style="margin:0">Tempo normal = tempo médio × ritmo (ou o ritmo Westinghouse da etapa, se avaliado). Tempo padrão = tempo normal × (1 + tolerâncias).
         Takt = tempo disponível ÷ demanda; operadores necessários = tempo por unidade ÷ takt.
         Campos vazios (ou 100% e 0%) deixam esses indicadores ocultos.</p>
     </details>
@@ -134,7 +185,8 @@
     <p id="studyMetaLine" class="hint" style="margin:10px 0 0"></p>
   </section>
 
-  <section class="module" aria-label="Cronômetro">
+  <!-- ---------- Cronoanálise ---------- -->
+  <section class="module" aria-label="Cronômetro" data-kind="time">
     <div class="module-head">Cronômetro contínuo</div>
     <div id="timer" class="timer-display">00:00:00.0</div>
     <div class="live-row">Elemento atual: <span id="liveElement">0,0s</span></div>
@@ -148,11 +200,12 @@
     <div class="last-mark">
       <span id="lastMarkText">Nenhuma marcação ainda</span>
       <button type="button" id="btnNote" data-action="note-last" disabled title="Anotar uma observação na última marcação" data-edit-only>📝 Obs.</button>
+      <button type="button" id="btnPhoto" data-action="photo-last" disabled title="Fotografar a última marcação (ex.: o desperdício observado)" data-edit-only>📷 Foto</button>
       <button type="button" id="btnUndo" data-action="undo" disabled data-edit-only>↶ Desfazer</button>
     </div>
   </section>
 
-  <section class="panel no-print qty-panel" data-edit-only>
+  <section class="panel no-print qty-panel" data-edit-only data-kind="time">
     <h2>Quantidade da Etapa</h2>
     <div class="qty-row">
       <button type="button" data-action="qty" data-delta="-10">-10</button>
@@ -164,7 +217,7 @@
     <p class="hint" style="text-align:center;margin:10px 0 0">Quantidade que será gravada na próxima etapa marcada. Se não alterar, o valor padrão é 1. Após marcar a etapa, o campo volta para 1 automaticamente.</p>
   </section>
 
-  <section class="panel no-print stages-panel">
+  <section class="panel no-print stages-panel" data-kind="time">
     <h2>Etapas</h2>
     <p class="hint">Toque numa etapa para marcar o tempo decorrido desde a última marcação. "Novo Ciclo" zera o elemento atual sem registrá-lo.</p>
     <p class="hint shortcut-hint" data-edit-only>Atalhos: <b>Espaço</b> iniciar/pausar · <b>1–9</b> marcar etapa · <b>0</b> interrupção · <b>N</b> novo ciclo · <b>Ctrl+Z</b> desfazer</p>
@@ -181,14 +234,20 @@
     <div id="stages" class="stage-grid"></div>
   </section>
 
-  <section class="panel" data-field-hide>
+  <section class="panel" data-field-hide data-kind="time">
     <h2>Indicadores</h2>
     <div id="stats"></div>
   </section>
 
-  <section class="panel" data-field-hide>
+  <section class="panel balance-panel" id="balancePanel" data-field-hide data-kind="time">
+    <h2>Balanceamento de linha</h2>
+    <p class="hint">Defina o posto (ou operador) de cada etapa no ✎ da etapa. A carga de cada posto é comparada com o takt do ciclo; a sugestão redistribui as etapas, na ordem do processo, para equilibrar os postos.</p>
+    <div id="balance"></div>
+  </section>
+
+  <section class="panel" data-field-hide data-kind="time">
     <h2>Registros</h2>
-    <div class="table-wrap">
+    <div class="table-wrap" id="recordsWrap">
       <table class="records">
         <thead>
           <tr><th>Ciclo</th><th>Etapa</th><th>Tipo</th><th>Tempo(s)</th><th>Qtd</th><th>Horário</th><th>Obs.</th><th class="no-print">Ações</th></tr>
@@ -196,15 +255,94 @@
         <tbody id="recordsTable"></tbody>
       </table>
     </div>
+    <p class="hint" id="recordsHint" style="margin:8px 0 0" hidden></p>
+  </section>
+
+  <!-- ---------- Amostragem do trabalho ---------- -->
+  <section class="panel sampling-capture" id="samplingCapture" data-kind="sampling">
+    <h2>Observação</h2>
+    <div id="samplingNext" class="sampling-next" aria-live="polite"></div>
+    <p class="hint">No horário de cada observação, olhe o que está acontecendo naquele instante e toque na categoria. Atalhos: <b>1–9</b>.</p>
+    <div id="samplingCats" class="stage-grid"></div>
+    <div class="last-mark light">
+      <span id="samplingLast">Nenhuma observação ainda</span>
+      <button type="button" id="btnSampleNote" data-action="sample-note" disabled data-edit-only>📝 Obs.</button>
+      <button type="button" id="btnSampleUndo" data-action="sample-undo" disabled data-edit-only>↶ Desfazer</button>
+    </div>
+  </section>
+
+  <section class="panel" data-kind="sampling" data-field-hide>
+    <h2>Roteiro de observações (horários aleatórios)</h2>
+    <div class="form-grid">
+      <label>Início<input id="planStart" type="time" data-plan="start"></label>
+      <label>Fim<input id="planEnd" type="time" data-plan="end"></label>
+      <label>Observações por dia<input id="planCount" type="number" min="1" max="300" inputmode="numeric" data-plan="count"></label>
+    </div>
+    <p class="hint" style="margin:0 0 8px">Horários sorteados para hoje — os mesmos em todos os aparelhos. Observar em horários aleatórios evita que a rotina "se arrume" para a observação.</p>
+    <div id="planList" class="plan-list"></div>
+  </section>
+
+  <section class="panel" data-kind="sampling" data-field-hide>
+    <h2>Categorias</h2>
+    <form id="catForm" class="stage-form" data-edit-only>
+      <input id="catName" placeholder="Nova categoria (ex.: Aguardando empilhadeira)" aria-label="Nome da categoria" autocomplete="off">
+      <label class="check-inline"><input type="checkbox" id="catProductive"> Produtiva</label>
+      <button type="submit">Adicionar</button>
+    </form>
+    <div id="catList" class="table-wrap"></div>
+  </section>
+
+  <section class="panel" data-kind="sampling" data-field-hide>
+    <h2>Resultados</h2>
+    <div class="form-grid">
+      <label>Minutos observados por dia (opcional)<input id="samplingMinutes" data-field="availableMin" inputmode="decimal" placeholder="ex.: 480" autocomplete="off"></label>
+    </div>
+    <div id="samplingStats"></div>
+  </section>
+
+  <section class="panel" data-kind="sampling" data-field-hide>
+    <h2>Observações</h2>
+    <div class="table-wrap">
+      <table class="records">
+        <thead><tr><th>Horário</th><th>Categoria</th><th>Produtiva</th><th>Obs.</th><th class="no-print">Ações</th></tr></thead>
+        <tbody id="obsTable"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="panel notes-panel">
     <h2>Observações / Oportunidades Observadas</h2>
     <p class="hint">Anote pontos de atenção, desvios, ideias de melhoria ou qualquer observação relevante sobre este estudo.</p>
-    <textarea id="notes" data-field="notes" class="notes-field" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..."></textarea>
+    <textarea id="notes" data-field="notes" class="notes-field" aria-label="Observações e oportunidades" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..."></textarea>
   </section>
 
   </div><!-- /editorMain -->
+
+  <!-- ---------- A3 ---------- -->
+  <section id="editorA3" class="panel" hidden>
+    <h2>Relatório A3</h2>
+    <p class="hint">A melhoria em uma página: problema, situação atual (os indicadores do estudo entram sozinhos), meta, causas, contramedidas, plano de ação e acompanhamento.</p>
+    <div class="a3-grid">
+      <label>1. Problema / contexto<textarea data-a3="problem" rows="3"></textarea></label>
+      <label>2. Situação atual (complemento)<textarea data-a3="current" rows="3" placeholder="Indicadores, Yamazumi e Pareto do estudo já entram no A3 impresso"></textarea></label>
+      <label>3. Meta<textarea data-a3="goal" rows="3" placeholder="Ex.: reduzir o ciclo de 62 s para 50 s (takt) até 30/11"></textarea></label>
+      <label>4. Análise de causa<textarea data-a3="rootCause" rows="3" placeholder="5 porquês, Ishikawa…"></textarea></label>
+      <label>5. Contramedidas<textarea data-a3="countermeasures" rows="3"></textarea></label>
+      <label>7. Acompanhamento / resultados<textarea data-a3="followUp" rows="3"></textarea></label>
+      <label>Estudo "depois" (comparação no A3)<select id="a3After"></select></label>
+    </div>
+    <h3 class="sub-h">6. Plano de ação</h3>
+    <div class="table-wrap">
+      <table class="records a3-actions">
+        <thead><tr><th>O quê</th><th>Quem</th><th>Quando</th><th>Status</th><th class="no-print"></th></tr></thead>
+        <tbody id="a3Actions"></tbody>
+      </table>
+    </div>
+    <div class="btn-row a3-buttons">
+      <button type="button" data-action="a3-add-action" data-edit-only>+ Ação</button>
+      <button type="button" class="cta" data-action="print-a3">🖨 Imprimir A3</button>
+    </div>
+  </section>
 
   <section id="editorHistory" class="panel" hidden>
     <h2>Histórico</h2>
@@ -220,6 +358,10 @@
 
 </main>
 
+<div id="a3Print" class="a3-print"></div>
+
+<input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+
 <!-- ===================== Modal: Editar Etapa ===================== -->
 <div id="stageEditModal" class="modal-overlay" hidden>
   <form class="modal-box" role="dialog" aria-modal="true" aria-labelledby="stageEditTitle" id="stageEditForm">
@@ -233,7 +375,14 @@
         <option>Transporte</option>
       </select>
     </label>
+    <label>Posto / operador (balanceamento de linha)<input id="editStageStation" list="stationList" placeholder="Ex.: Posto 1" maxlength="60" autocomplete="off"></label>
+    <datalist id="stationList"></datalist>
     <label class="check"><input id="editStageOutput" type="checkbox"> <span>Conta para a produção<br><small class="hint">Marque a(s) etapa(s) que representam a saída do processo. Se nenhuma estiver marcada, a produtividade soma a quantidade de todas as etapas.</small></span></label>
+    <details class="wh-box" id="whBox">
+      <summary>Ritmo desta etapa (Westinghouse): <b id="whResult">usa o do estudo</b></summary>
+      <div class="form-grid" id="whFields"></div>
+      <p class="hint" style="margin:0">Ritmo = 1 + soma dos fatores. Deixe tudo em "—" para usar o fator de ritmo do estudo.</p>
+    </details>
     <div class="move-row">
       <button type="button" id="btnStageBack" data-action="stage-back">◀ Mover para trás</button>
       <span id="stagePosLabel" class="hint"></span>
@@ -260,17 +409,33 @@
           <option value="99">99%</option>
         </select>
       </label>
-      <label class="row">Erro relativo aceitável
+      <label class="row">Erro aceitável
         <select id="prefError">
           <option value="5">±5%</option>
           <option value="10">±10%</option>
         </select>
       </label>
-      <p class="hint" style="margin:0">Usados no cálculo de "ciclos necessários": n = (z·s / (e·x̄))².</p>
+      <p class="hint" style="margin:0">Cronoanálise: n = (z·s / (e·x̄))², erro relativo. Amostragem: n = z²·p(1−p) / e², erro em pontos percentuais.</p>
     </div>
     <div class="modal-section">
       <h3>Coleta</h3>
       <label class="row">Vibrar ao marcar etapa (celular) <input id="prefVibrate" type="checkbox"></label>
+    </div>
+    <div class="modal-section">
+      <h3>Segurança</h3>
+      <div class="row-line"><span>Verificação em duas etapas: <b id="mfaStatus">—</b></span>
+        <button type="button" id="btnMfaToggle" data-action="mfa-toggle">Ativar</button></div>
+      <label class="row">Sair automaticamente sem uso
+        <select id="prefAutoLogout">
+          <option value="0">Nunca</option>
+          <option value="15">Após 15 min</option>
+          <option value="30">Após 30 min</option>
+          <option value="60">Após 1 hora</option>
+          <option value="120">Após 2 horas</option>
+        </select>
+      </label>
+      <p class="hint" style="margin:0">Para computador ou celular compartilhado. Nunca sai durante uma cronometragem em andamento.</p>
+      <button type="button" class="link-btn" data-action="open-privacy">Privacidade e dados (LGPD)</button>
     </div>
     <div class="modal-section">
       <h3>Backup</h3>
@@ -284,9 +449,64 @@
     <div class="modal-section danger-zone">
       <h3>Conta</h3>
       <button type="button" class="danger" data-action="delete-account">Excluir minha conta e meus dados</button>
-      <p class="hint" style="margin:0">Apaga sua conta, seus estudos e compartilhamentos do servidor e deste aparelho (LGPD). Baixe um backup antes, se quiser guardar os dados.</p>
+      <p class="hint" style="margin:0">Apaga sua conta, seus estudos, fotos, times e compartilhamentos do servidor e deste aparelho (LGPD). Baixe um backup antes, se quiser guardar os dados.</p>
     </div>
     <p class="hint" style="margin:0" id="appVersion">CronoAnálise</p>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Ativar duas etapas ===================== -->
+<div id="mfaEnrollModal" class="modal-overlay" hidden>
+  <form class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mfaEnrollTitle" id="mfaEnrollForm">
+    <h2 id="mfaEnrollTitle">Ativar verificação em duas etapas</h2>
+    <ol class="hint steps">
+      <li>Instale um aplicativo autenticador (Microsoft Authenticator, Google Authenticator…).</li>
+      <li>No aplicativo, adicione uma conta lendo o QR code abaixo.</li>
+      <li>Digite o código de 6 dígitos que aparece no aplicativo.</li>
+    </ol>
+    <img id="mfaQr" class="mfa-qr" alt="QR code para o aplicativo autenticador" width="180" height="180">
+    <p class="hint" style="margin:0">Sem câmera? Digite a chave: <code id="mfaSecret"></code></p>
+    <label>Código de 6 dígitos<input id="mfaEnrollCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+    <div id="mfaEnrollError" class="auth-error" role="alert"></div>
+    <div class="auth-actions">
+      <button type="submit" class="cta">Ativar</button>
+      <button type="button" data-action="close-modal">Cancelar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ===================== Modal: Inatividade ===================== -->
+<div id="idleModal" class="modal-overlay" hidden>
+  <div class="modal-box" role="alertdialog" aria-modal="true" aria-labelledby="idleTitle" aria-describedby="idleText">
+    <h2 id="idleTitle">Você ainda está aí?</h2>
+    <p class="hint" id="idleText" style="margin:0">Por segurança, você vai sair da conta em <b id="idleCount">60</b> s por falta de uso.</p>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="idle-stay">Continuar conectado</button>
+      <button type="button" data-action="sign-out">Sair agora</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Privacidade ===================== -->
+<div id="privacyModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+    <h2 id="privacyTitle">Privacidade e dados (LGPD)</h2>
+    <div class="privacy-text">
+      <p><b>O que guardamos:</b> seu e-mail (para entrar e para compartilhar), os estudos que você cria (etapas, tempos, observações, fotos e o A3), os times de que participa, a data e o número de acessos e, se o aplicativo der erro, a mensagem técnica do erro (sem o conteúdo dos estudos).</p>
+      <p><b>Onde:</b> no Supabase (banco de dados com regras de acesso por usuário) e neste aparelho, separado por conta. Só você e as pessoas ou times com quem você compartilhar um estudo têm acesso a ele.</p>
+      <p><b>Por quanto tempo:</b></p>
+      <ul>
+        <li>Estudos e fotos: enquanto você mantiver a conta.</li>
+        <li>Versões anteriores dos estudos: 90 dias.</li>
+        <li>Estudos excluídos: apagados de vez após 180 dias.</li>
+        <li>Erros do aplicativo: 90 dias.</li>
+        <li>Registro de acessos: apagado após 24 meses sem entrar.</li>
+      </ul>
+      <p><b>Seus direitos:</b> você pode baixar todos os seus dados (Configurações → Baixar backup) e excluir a conta com tudo o que ela contém (Configurações → Excluir minha conta). Dúvidas: fale com o administrador do sistema.</p>
+    </div>
     <div class="auth-actions">
       <button type="button" class="cta" data-action="close-modal">Fechar</button>
     </div>
@@ -309,7 +529,66 @@
     </form>
     <div id="shareError" class="auth-error" role="alert"></div>
     <div id="shareList" class="table-wrap"></div>
+    <div id="teamShareBox" class="modal-section" hidden>
+      <h3>Compartilhar com um time</h3>
+      <form id="teamShareForm" class="share-form">
+        <select id="teamShareTeam" aria-label="Time"></select>
+        <select id="teamShareRole" aria-label="Tipo de acesso do time">
+          <option value="viewer">Pode ver</option>
+          <option value="editor">Pode editar</option>
+        </select>
+        <button type="submit" class="cta">Compartilhar</button>
+      </form>
+      <div id="teamShareList" class="table-wrap"></div>
+    </div>
     <p class="hint" style="margin:0">A pessoa vê o estudo ao entrar com esse e-mail (mesmo se criar a conta depois). Quem pode editar não consegue excluir nem compartilhar.</p>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Times ===================== -->
+<div id="teamsModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="teamsTitle">
+    <h2 id="teamsTitle">Times</h2>
+    <p class="hint" style="margin:0">Crie um time (por exemplo, por site ou turno), adicione as pessoas pelo e-mail e compartilhe estudos com o time inteiro de uma vez. O dashboard ganha um filtro com o painel do time.</p>
+    <p class="hint" id="teamsUnavailable" hidden>Os times ficam disponíveis depois que o administrador rodar a migração <code>supabase/migrations/003_equipe_seguranca.sql</code> no Supabase.</p>
+    <form id="teamForm" class="share-form">
+      <input id="teamName" placeholder="Nome do novo time (ex.: Site Cajamar)" maxlength="80" aria-label="Nome do novo time" autocomplete="off">
+      <button type="submit" class="cta">Criar time</button>
+    </form>
+    <div id="teamsError" class="auth-error" role="alert"></div>
+    <div id="teamsList" class="team-list"></div>
+    <div id="teamDetail" class="modal-section" hidden>
+      <h3 id="teamDetailName"></h3>
+      <form id="memberForm" class="share-form">
+        <input id="memberEmail" type="email" placeholder="e-mail da pessoa" aria-label="E-mail do integrante" autocomplete="off">
+        <select id="memberRole" aria-label="Papel no time">
+          <option value="member">Integrante</option>
+          <option value="manager">Gestor (adiciona pessoas)</option>
+        </select>
+        <button type="submit" class="cta">Adicionar</button>
+      </form>
+      <div id="memberError" class="auth-error" role="alert"></div>
+      <div id="membersList" class="table-wrap"></div>
+      <div class="btn-row">
+        <button type="button" class="danger" id="btnTeamLeave" data-action="team-leave">Sair do time</button>
+        <button type="button" class="danger" id="btnTeamDelete" data-action="team-delete">Excluir time</button>
+      </div>
+    </div>
+    <div class="auth-actions">
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Fotos ===================== -->
+<div id="photoModal" class="modal-overlay" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="photoTitle">
+    <h2 id="photoTitle">Fotos</h2>
+    <p class="hint" id="photoInfo" style="margin:0"></p>
+    <div id="photoGrid" class="photo-grid"></div>
     <div class="auth-actions">
       <button type="button" class="cta" data-action="close-modal">Fechar</button>
     </div>
@@ -335,7 +614,7 @@
 <div id="deleteAccountModal" class="modal-overlay" hidden>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
     <h2 id="deleteTitle">Excluir conta</h2>
-    <p class="hint" style="margin:0">Isto apaga <b>definitivamente</b> sua conta, todos os seus estudos, compartilhamentos e versões no servidor, e os dados deste aparelho. Não dá para desfazer.</p>
+    <p class="hint" style="margin:0">Isto apaga <b>definitivamente</b> sua conta, todos os seus estudos, fotos, times, compartilhamentos e versões no servidor, e os dados deste aparelho. Não dá para desfazer.</p>
     <label>Digite EXCLUIR para confirmar<input id="deleteConfirm" autocomplete="off"></label>
     <div id="deleteError" class="auth-error" role="alert"></div>
     <div class="auth-actions">
@@ -347,17 +626,45 @@
 
 <!-- ===================== Modal: Administração ===================== -->
 <div id="adminModal" class="modal-overlay" hidden>
-  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
-    <h2 id="adminTitle">Administração — Usuários</h2>
-    <p class="hint" id="adminSummary" style="margin:0">Carregando…</p>
-    <div class="table-wrap">
-      <table class="summary-table">
-        <thead id="adminUsersHead"><tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th></tr></thead>
-        <tbody id="adminUsersTable"></tbody>
-      </table>
+  <div class="modal-box wide xwide" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+    <h2 id="adminTitle">Administração</h2>
+    <div class="editor-tabs" role="tablist" aria-label="Seções da administração">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-action="admin-tab" data-tab="users" id="adminTabUsers">Usuários</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-action="admin-tab" data-tab="errors" id="adminTabErrors">Erros do app</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-action="admin-tab" data-tab="data" id="adminTabData">Dados (LGPD)</button>
+    </div>
+    <div id="adminUsers">
+      <p class="hint" id="adminSummary" style="margin:0">Carregando…</p>
+      <div class="table-wrap">
+        <table class="summary-table">
+          <thead id="adminUsersHead"><tr><th>E-mail</th><th>1º acesso</th><th>Último acesso</th><th>Acessos</th></tr></thead>
+          <tbody id="adminUsersTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="adminErrors" hidden>
+      <p class="hint" id="adminErrorsSummary" style="margin:0">Carregando…</p>
+      <div id="adminErrorsList" class="error-list"></div>
+      <button type="button" class="danger" data-action="admin-clear-errors">Apagar todos os erros</button>
+    </div>
+    <div id="adminData" hidden>
+      <p class="hint" style="margin:0">Política de retenção: erros e versões anteriores por 90 dias, estudos excluídos por 180 dias e registro de acessos por 24 meses sem uso. Com a extensão pg_cron ativa no Supabase, a limpeza roda sozinha todo dia; aqui dá para rodar agora.</p>
+      <button type="button" data-action="admin-purge">Aplicar a política de retenção agora</button>
+      <p class="hint" id="adminPurgeResult" style="margin:0"></p>
     </div>
     <div class="auth-actions">
       <button type="button" data-action="reload-admin">↺ Atualizar</button>
+      <button type="button" class="cta" data-action="close-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Modal: Aviso genérico ===================== -->
+<div id="infoModal" class="modal-overlay" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <h2 id="infoTitle"></h2>
+    <div id="infoBody" class="info-body"></div>
+    <div class="auth-actions" id="infoActions">
       <button type="button" class="cta" data-action="close-modal">Fechar</button>
     </div>
   </div>

@@ -4,7 +4,7 @@
    Requisições ao Supabase (outro domínio) não passam por aqui.
    Ao mudar a lista de arquivos, incremente CACHE_VERSION. */
 
-const CACHE_VERSION = 'cronoanalise-v10.1';
+const CACHE_VERSION = 'cronoanalise-v11';
 const NETWORK_TIMEOUT_MS = 4000;
 
 const APP_SHELL = [
@@ -24,9 +24,17 @@ const APP_SHELL = [
   'js/editor-records.js',
   'js/editor-stats.js',
   'js/editor-history.js',
+  'js/editor-balance.js',
+  'js/editor-sampling.js',
+  'js/editor-a3.js',
+  'js/chart-tips.js',
   'js/dashboard.js',
   'js/share.js',
   'js/compare.js',
+  'js/teams.js',
+  'js/photos.js',
+  'js/monitor.js',
+  'js/integrations.js',
   'js/core/format.js',
   'js/core/timer.js',
   'js/core/stats.js',
@@ -36,7 +44,13 @@ const APP_SHELL = [
   'js/core/zip.js',
   'js/core/xlsx.js',
   'js/core/report.js',
+  'js/core/balance.js',
+  'js/core/sampling.js',
+  'js/core/trend.js',
+  'js/core/westinghouse.js',
   'vendor/supabase-js-2.117.2.js',
+  'fonts/lexend.woff2',
+  'fonts/roboto-mono.woff2',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',

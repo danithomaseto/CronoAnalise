@@ -98,6 +98,11 @@ export function newCycle() {
   updateUI();
 }
 
+export function lastRecordId() {
+  const recs = S.current ? S.current.records : [];
+  return recs.length ? recs[recs.length - 1].id : null;
+}
+
 export function updateUI() {
   if (!S.current) return;
   const now = Date.now();
@@ -303,8 +308,9 @@ export function renderLastMark() {
   btn.setAttribute('aria-label', describeUndo(top));
   const last = S.current.records[S.current.records.length - 1];
   $('btnNote').disabled = !last || S.readonly;
+  $('btnPhoto').disabled = !last || S.readonly;
   $('lastMarkText').innerHTML = last
     ? 'Última: <b>' + escapeHtml(last.stageName) + '</b> — ' + toBR(last.time) + ' s · ciclo ' + last.cycle +
-      (last.note ? ' · 📝 ' + escapeHtml(last.note) : '')
+      (last.note ? ' · 📝 ' + escapeHtml(last.note) : '') + ((last.photos || []).length ? ' · 📷 ' + last.photos.length : '')
     : 'Nenhuma marcação ainda';
 }

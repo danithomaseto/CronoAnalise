@@ -24,6 +24,7 @@ let mem = emptyStore();      // estudos em memória (fonte das leituras)
 let access = {};             // { studyId: { role: 'owner'|'editor'|'viewer', ownerEmail } }
 let backend = null;          // 'idb' | 'ls'
 let db = null;
+let photoDb = null;          // banco separado para as fotos (abre só quando usado)
 let channel = null;
 let writeChain = Promise.resolve();
 let onWriteError = () => {};
@@ -221,6 +222,7 @@ export function isTimerKey(k) {
 export async function setUser(id) {
   if (channel) { try { channel.close(); } catch (e) { /* já fechado */ } channel = null; }
   if (db) { await writeChain.catch(() => {}); db.close(); db = null; }
+  if (photoDb) { const p = photoDb; photoDb = null; p.then(d => d && d.close()).catch(() => {}); }
   userId = id;
   mem = emptyStore();
   access = {};
@@ -409,7 +411,9 @@ export function getSyncMeta() {
     versions: m.versions || {},     // { studyId: updated_at no servidor }
     lastPullAt: m.lastPullAt || null,
     blobVersion: m.blobVersion || null,
-    rowsReady: !!m.rowsReady
+    rowsReady: !!m.rowsReady,
+    teams: !!m.teams,               // migração 003 (times) disponível
+    teamsCache: m.teamsCache || null // { teams: [...], studyTeams: { studyId: [teamId] } }
   };
 }
 
@@ -486,6 +490,73 @@ export function setSession(s) {
   writeJSON(key('session'), s);
 }
 
+/* ---------- Fotos (IndexedDB "cronoanalise-<id>-photos") ----------
+   { id, studyId, path, blob, uploaded, ts } — a foto fica no aparelho até subir
+   para o Supabase Storage e continua como cópia local para abrir offline.
+   Banco separado do dos estudos: não exige atualizar a versão do banco principal
+   (o que travaria com uma aba antiga do app aberta). */
+export function photosSupported() {
+  return backend === 'idb' && !!userId && typeof indexedDB !== 'undefined';
+}
+
+function openPhotoDb() {
+  if (!photosSupported()) return Promise.resolve(null);
+  if (!photoDb) {
+    const uidNow = userId;
+    photoDb = new Promise(resolve => {
+      const req = indexedDB.open('cronoanalise-' + uidNow + '-photos', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('photos', { keyPath: 'id' });
+      req.onsuccess = () => {
+        const d = req.result;
+        d.onversionchange = () => d.close();
+        resolve(d);
+      };
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    });
+  }
+  return photoDb;
+}
+
+async function photoTx(mode, fn) {
+  const d = await openPhotoDb();
+  if (!d) return null;
+  return new Promise((resolve, reject) => {
+    const t = d.transaction('photos', mode);
+    let out;
+    Promise.resolve(fn(t.objectStore('photos'))).then(v => { out = v; }, reject);
+    t.oncomplete = () => resolve(out);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error('transação abortada'));
+  });
+}
+
+export async function putPhoto(photo) {
+  try { return (await photoTx('readwrite', os => { os.put(photo); return true; })) === true; } catch (e) { onWriteError(e); return false; }
+}
+
+export async function getPhoto(id) {
+  try { return await photoTx('readonly', os => idbRequest(os.get(id))); } catch (e) { return null; }
+}
+
+export async function listPhotos() {
+  try { return (await photoTx('readonly', os => idbRequest(os.getAll()))) || []; } catch (e) { return []; }
+}
+
+export async function markPhotoUploaded(id) {
+  try {
+    await photoTx('readwrite', async os => {
+      const p = await idbRequest(os.get(id));
+      if (p) { p.uploaded = true; os.put(p); }
+    });
+  } catch (e) { /* tenta de novo no próximo envio */ }
+}
+
+export async function deleteLocalPhotos(ids) {
+  if (!ids.length) return;
+  try { await photoTx('readwrite', os => { ids.forEach(id => os.delete(id)); }); } catch (e) { /* ok */ }
+}
+
 /* ---------- Apagar dados locais (excluir conta) ---------- */
 export async function wipeUserData(id) {
   const uidToWipe = id || userId;
@@ -493,12 +564,15 @@ export async function wipeUserData(id) {
     Object.keys(localStorage).filter(k => k.startsWith('cronoanalise:v3:' + uidToWipe + ':')).forEach(k => localStorage.removeItem(k));
   } catch (e) { /* ok */ }
   if (db) { db.close(); db = null; }
-  await new Promise(resolve => {
-    try {
-      const req = indexedDB.deleteDatabase('cronoanalise-' + uidToWipe);
-      req.onsuccess = req.onerror = req.onblocked = () => resolve();
-    } catch (e) { resolve(); }
-  });
+  if (photoDb) { const d = await photoDb.catch(() => null); if (d) d.close(); photoDb = null; }
+  for (const name of ['cronoanalise-' + uidToWipe, 'cronoanalise-' + uidToWipe + '-photos']) {
+    await new Promise(resolve => {
+      try {
+        const req = indexedDB.deleteDatabase(name);
+        req.onsuccess = req.onerror = req.onblocked = () => resolve();
+      } catch (e) { resolve(); }
+    });
+  }
 }
 
 /* ---------- Preferências do aparelho ---------- */

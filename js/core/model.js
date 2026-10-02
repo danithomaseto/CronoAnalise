@@ -12,6 +12,8 @@
 
 import { TYPES } from '../config.js';
 import { hashString, parseNumber, stableStringify } from './format.js';
+import { normalizeWh } from './westinghouse.js';
+import { normalizePlan } from './sampling.js';
 
 export const FORMAT = 3;
 export const TOMBSTONE_MAX_AGE_DAYS = 180;
@@ -29,11 +31,28 @@ export function emptyStore() {
   return { format: FORMAT, studies: {}, deleted: {} };
 }
 
+/* Categorias iniciais de um estudo de amostragem do trabalho. */
+/** @type {[string, boolean][]} */
+export const DEFAULT_SAMPLING_CATEGORIES = [
+  ['Produtivo', true], ['Aguardando / ocioso', false], ['Deslocamento', false],
+  ['Falta de material', false], ['Ausente', false]
+];
+
 /**
- * @param {{ id?: string, name?: string, now?: string }} [opts]
+ * @param {{ id?: string, name?: string, now?: string, kind?: 'sampling' }} [opts]
  * @returns {Study}
  */
-export function createStudy({ id, name = '', now = new Date().toISOString() } = {}) {
+export function createStudy({ id, name = '', now = new Date().toISOString(), kind } = {}) {
+  if (kind === 'sampling') {
+    return {
+      ...createStudy({ id, name, now }),
+      kind: 'sampling',
+      categories: DEFAULT_SAMPLING_CATEGORIES.map(([n, productive], i) => ({ id: 'cat_' + hashString(id + '|' + n), name: n, productive, pos: i, u: now })),
+      observations: [],
+      samplingPlan: { start: '08:00', end: '17:00', count: 30 },
+      history: [{ ts: now, text: 'Estudo de amostragem criado' }]
+    };
+  }
   return {
     id,
     name,
@@ -86,6 +105,8 @@ export function normalizeStudy(raw, { id, name, now = new Date().toISOString() }
     if (out.countsOutput !== undefined) out.countsOutput = out.countsOutput === true;
     if (out.u !== undefined && !validIso(out.u)) delete out.u;
     if (typeof out.pos !== 'number' || !isFinite(out.pos)) out.pos = i;
+    if (out.station !== undefined) { out.station = str(out.station).trim().slice(0, 60); if (!out.station) delete out.station; }
+    if (out.wh !== undefined) { const wh = normalizeWh(out.wh); if (wh) out.wh = wh; else delete out.wh; }
     return out;
   });
   s.stages = sortStages(s.stages);
@@ -109,6 +130,7 @@ export function normalizeStudy(raw, { id, name, now = new Date().toISOString() }
     if (out.interruption !== undefined) out.interruption = out.interruption === true;
     if (out.note !== undefined) { out.note = str(out.note); if (!out.note) delete out.note; }
     if (out.u !== undefined && !validIso(out.u)) delete out.u;
+    if (out.photos !== undefined) { out.photos = normalizePhotos(out.photos); if (!out.photos.length) delete out.photos; }
     return out;
   });
 
@@ -133,6 +155,38 @@ export function normalizeStudy(raw, { id, name, now = new Date().toISOString() }
     if (isFinite(v) && v > 0) s[k] = v; else delete s[k];
   });
 
+  // Amostragem do trabalho (kind = 'sampling')
+  if (s.kind !== undefined && s.kind !== 'sampling') delete s.kind;
+  if (s.categories !== undefined || s.kind === 'sampling') {
+    s.categories = (Array.isArray(s.categories) ? s.categories : []).filter(isPlainObject).map((c, i) => {
+      const out = { ...c };
+      out.name = str(c.name);
+      out.id = str(c.id) || 'cat_' + hashString(s.id + '|' + out.name + '|' + i);
+      out.productive = c.productive === true;
+      if (out.u !== undefined && !validIso(out.u)) delete out.u;
+      if (typeof out.pos !== 'number' || !isFinite(out.pos)) out.pos = i;
+      return out;
+    });
+    s.categories = sortStages(s.categories);
+  }
+  if (s.observations !== undefined || s.kind === 'sampling') {
+    s.observations = (Array.isArray(s.observations) ? s.observations : []).filter(isPlainObject).map((o, i) => {
+      const out = { ...o };
+      out.ts = validIso(o.ts) ? o.ts : s.createdAt;
+      out.id = str(o.id) || 'ob_' + hashString(s.id + '|' + i + '|' + out.ts + '|' + str(o.cat));
+      out.cat = str(o.cat);
+      out.catName = str(o.catName);
+      out.productive = o.productive === true;
+      if (out.note !== undefined) { out.note = str(out.note); if (!out.note) delete out.note; }
+      if (out.excluded !== undefined) { if (out.excluded === true) out.excluded = true; else delete out.excluded; }
+      if (out.u !== undefined && !validIso(out.u)) delete out.u;
+      return out;
+    });
+    s.observations = sortObservations(s.observations);
+  }
+  if (s.samplingPlan !== undefined) { const p = normalizePlan(s.samplingPlan); if (p) s.samplingPlan = p; else delete s.samplingPlan; }
+  if (s.a3 !== undefined) { const a3 = normalizeA3(s.a3); if (a3) s.a3 = a3; else delete s.a3; }
+
   // Metadados da mesclagem registro a registro (ver mergeStudy)
   s.fieldTs = isoMap(s.fieldTs);
   if (!Object.keys(s.fieldTs).length) delete s.fieldTs;
@@ -140,7 +194,44 @@ export function normalizeStudy(raw, { id, name, now = new Date().toISOString() }
   if (!Object.keys(s.deletedRecords).length) delete s.deletedRecords;
   s.deletedStages = isoMap(s.deletedStages);
   if (!Object.keys(s.deletedStages).length) delete s.deletedStages;
+  ['deletedCategories', 'deletedObservations'].forEach(k => {
+    if (s[k] === undefined) return;
+    s[k] = isoMap(s[k]);
+    if (!Object.keys(s[k]).length) delete s[k];
+  });
   return s;
+}
+
+function normalizePhotos(v) {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set();
+  return v.filter(p => isPlainObject(p) && typeof p.id === 'string' && p.id && typeof p.path === 'string' && p.path)
+    .filter(p => !seen.has(p.id) && seen.add(p.id))
+    .map(p => ({ id: p.id, path: p.path, ...(validIso(p.ts) ? { ts: p.ts } : {}) }));
+}
+
+export const A3_TEXT_FIELDS = ['problem', 'goal', 'current', 'rootCause', 'countermeasures', 'followUp'];
+export const A3_STATUS = ['aberta', 'andamento', 'concluida'];
+
+/* Relatório A3: textos + plano de ação. Vazio → null. */
+export function normalizeA3(raw) {
+  if (!isPlainObject(raw)) return null;
+  const out = {};
+  A3_TEXT_FIELDS.forEach(k => { const v = str(raw[k]); if (v.trim()) out[k] = v; });
+  if (raw.afterStudyId) out.afterStudyId = str(raw.afterStudyId);
+  const actions = (Array.isArray(raw.actions) ? raw.actions : []).filter(isPlainObject).map((a, i) => ({
+    id: str(a.id) || 'act_' + i,
+    what: str(a.what),
+    who: str(a.who),
+    when: /^\d{4}-\d{2}-\d{2}$/.test(str(a.when)) ? str(a.when) : '',
+    status: A3_STATUS.includes(a.status) ? a.status : 'aberta'
+  })).filter(a => a.what.trim() || a.who.trim() || a.when);
+  if (actions.length) out.actions = actions;
+  return Object.keys(out).length ? out : null;
+}
+
+function sortObservations(list) {
+  return list.slice().sort((x, y) => (x.ts < y.ts ? -1 : x.ts > y.ts ? 1 : x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
 }
 
 /* Ordem das etapas: campo `pos` de cada etapa (desempate pelo id). Reordenar
@@ -261,7 +352,7 @@ export function normalizeStore(raw, now = new Date().toISOString()) {
 
 export const MERGE_FIELDS = [
   'name', 'process', 'operator', 'observer', 'notes', 'rating', 'allowance',
-  'demand', 'availableMin', 'currentCycle', 'cycleQty'
+  'demand', 'availableMin', 'currentCycle', 'cycleQty', 'kind', 'samplingPlan', 'a3'
 ];
 
 function newerStudy(a, b) {
@@ -276,8 +367,27 @@ function newerStudy(a, b) {
 function pick(va, vb, ta, tb, aIsNewer) {
   const d = tsOf(ta) - tsOf(tb);
   if (d !== 0) return d > 0 ? va : vb;
-  if (stableStringify(va) === stableStringify(vb)) return va;
+  if (sameItem(va, vb)) return va;
   return aIsNewer ? va : vb;
+}
+
+/* Igualdade de conteúdo de um item (etapa, registro…), rápida no caso comum —
+   campos simples — e exata para os campos com objetos (ex.: fotos). */
+function sameItem(a, b) {
+  if (a === b) return true;
+  const ka = Object.keys(a).filter(k => a[k] !== undefined);
+  const kb = Object.keys(b).filter(k => b[k] !== undefined);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    const x = a[k], y = b[k];
+    if (x === y) continue;
+    if (x && y && typeof x === 'object' && typeof y === 'object') {
+      if (stableStringify(x) !== stableStringify(y)) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
 }
 
 function mergeTombstones(ta = {}, tb = {}) {
@@ -345,6 +455,19 @@ export function mergeStudy(a, b) {
   keyed.sort((x, y) => (x.k < y.k ? -1 : x.k > y.k ? 1 : x.i - y.i));
   out.records = keyed.map(x => x.r);
 
+  // Amostragem: categorias (como etapas) e observações (como registros)
+  let catTomb = null, obsTomb = null;
+  if (a.categories || b.categories || a.deletedCategories || b.deletedCategories) {
+    const c = mergeItems(a.categories || [], b.categories || [], a.deletedCategories, b.deletedCategories, x => x.u || created, aIsNewer);
+    out.categories = sortStages([...c.items.values()]);
+    catTomb = c.tomb;
+  }
+  if (a.observations || b.observations || a.deletedObservations || b.deletedObservations) {
+    const o = mergeItems(a.observations || [], b.observations || [], a.deletedObservations, b.deletedObservations, x => x.u || x.ts || created, aIsNewer);
+    out.observations = sortObservations([...o.items.values()]);
+    obsTomb = o.tomb;
+  }
+
   // Histórico: união
   const hist = new Map();
   [...(a.history || []), ...(b.history || [])].forEach(h => { hist.set((h.ts || '') + '|' + h.text, h); });
@@ -354,6 +477,8 @@ export function mergeStudy(a, b) {
   if (Object.keys(fieldTs).length) out.fieldTs = fieldTs; else delete out.fieldTs;
   if (Object.keys(st.tomb).length) out.deletedStages = st.tomb; else delete out.deletedStages;
   if (Object.keys(rec.tomb).length) out.deletedRecords = rec.tomb; else delete out.deletedRecords;
+  if (catTomb && Object.keys(catTomb).length) out.deletedCategories = catTomb; else delete out.deletedCategories;
+  if (obsTomb && Object.keys(obsTomb).length) out.deletedObservations = obsTomb; else delete out.deletedObservations;
   out.createdAt = created;
   out.updatedAt = tsOf(a.updatedAt) >= tsOf(b.updatedAt) ? a.updatedAt : b.updatedAt;
   return out;
@@ -425,7 +550,7 @@ export function pruneTombstones(store, now = Date.now(), maxAgeDays = TOMBSTONE_
 export function pruneStudyTombstones(study, now = Date.now(), maxAgeDays = TOMBSTONE_MAX_AGE_DAYS) {
   const limit = now - maxAgeDays * 86400000;
   let s = study;
-  ['deletedRecords', 'deletedStages'].forEach(k => {
+  ['deletedRecords', 'deletedStages', 'deletedCategories', 'deletedObservations'].forEach(k => {
     const map = s[k];
     if (!map) return;
     const kept = {};

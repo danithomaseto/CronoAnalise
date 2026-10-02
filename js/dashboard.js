@@ -2,7 +2,9 @@
 
 import { FIELD_LABELS } from './config.js';
 import * as storage from './storage.js';
-import { countCycles } from './core/stats.js';
+import { countCycles, computeStats } from './core/stats.js';
+import { samplingStats } from './core/sampling.js';
+import { cachedTeams, teamsOfStudy } from './teams.js';
 import { uniqueCopyName } from './core/model.js';
 import { toBR, fmtDate, escapeHtml, uid } from './core/format.js';
 import * as T from './core/timer.js';
@@ -16,16 +18,38 @@ export function initDashboard(opts) {
   onForget = opts.onForget || onForget;
   $('dashSearch').addEventListener('input', renderDashboard);
   $('dashSort').addEventListener('change', renderDashboard);
+  $('dashFilter').addEventListener('change', renderDashboard);
+}
+
+/* Filtro: todos, meus, compartilhados comigo ou um time (painel do time). */
+function renderFilterOptions() {
+  const sel = $('dashFilter');
+  const cur = sel.value || 'all';
+  const teams = cachedTeams();
+  sel.innerHTML = '<option value="all">Todos os estudos</option><option value="mine">Meus estudos</option><option value="shared">Compartilhados comigo</option>' +
+    (teams.length ? '<optgroup label="Painel do time">' + teams.map(t => '<option value="team:' + escapeHtml(t.id) + '">🏢 ' + escapeHtml(t.name) + '</option>').join('') + '</optgroup>' : '');
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : 'all';
+  return sel.value;
 }
 
 const ts = iso => { const t = Date.parse(iso); return isNaN(t) ? 0 : t; };
 
 export function renderDashboard() {
   if (!storage.getUser()) return;
-  const studies = storage.listStudies();
+  const all = storage.listStudies();
   const timers = storage.getTimers();
   const q = ($('dashSearch').value || '').toLowerCase().trim();
   const sort = $('dashSort').value;
+  const filter = renderFilterOptions();
+  const teamId = filter.startsWith('team:') ? filter.slice(5) : null;
+  const team = teamId ? cachedTeams().find(t => t.id === teamId) : null;
+  const studies = all.filter(s => {
+    const owner = storage.getAccess(s.id).role === 'owner';
+    if (filter === 'mine') return owner;
+    if (filter === 'shared') return !owner;
+    if (teamId) return teamsOfStudy(s.id).includes(teamId);
+    return true;
+  });
 
   let list = studies;
   if (q) {
@@ -39,22 +63,36 @@ export function renderDashboard() {
     return ts(b.createdAt) - ts(a.createdAt);
   });
 
-  let totalRecords = 0, totalTime = 0, lastModified = null;
+  let totalRecords = 0, totalTime = 0, lastModified = null, totalObs = 0;
   studies.forEach(s => {
     totalRecords += s.records.length;
+    totalObs += (s.observations || []).length;
     totalTime += s.records.reduce((a, r) => a + (r.interruption ? 0 : Number(r.time) || 0), 0);
     if (!lastModified || ts(s.updatedAt) > ts(lastModified.updatedAt)) lastModified = s;
   });
-  $('dashKpis').innerHTML =
+  let kpis =
     kpi('Total de Estudos', String(studies.length)) +
     kpi('Total de Registros', String(totalRecords)) +
     kpi('Tempo Total Registrado', toBR(totalTime) + 's') +
     kpi('Último Estudo Modificado', lastModified ? escapeHtml(lastModified.name) : '—', true);
-  $('btnCompare').disabled = studies.length < 2;
+  if (totalObs) kpis += kpi('Observações (amostragem)', String(totalObs));
+  if (team) {
+    // painel do time: médias dos estudos do time
+    const prefs = storage.getPrefs();
+    const time = studies.filter(s => s.kind !== 'sampling' && s.records.length).map(s => computeStats(s, prefs));
+    const samp = studies.filter(s => s.kind === 'sampling' && (s.observations || []).length).map(s => samplingStats(s, prefs));
+    const avg = arr => arr.reduce((a, v) => a + v, 0) / (arr.length || 1);
+    if (time.length) kpis += kpi('% Valor Agregado médio', toBR(avg(time.map(x => x.vaPct)), 1) + '%');
+    if (samp.length) kpis += kpi('% Produtivo médio', toBR(avg(samp.map(x => x.productivePct)), 1) + '%');
+    kpis += kpi('Pessoas no time', String(team.members || 1));
+  }
+  $('dashKpisTitle').textContent = team ? 'Painel do time — ' + team.name : filter === 'mine' ? 'Visão Geral — meus estudos' : filter === 'shared' ? 'Visão Geral — compartilhados comigo' : 'Visão Geral';
+  $('dashKpis').innerHTML = kpis;
+  $('btnCompare').disabled = all.filter(s => s.kind !== 'sampling').length < 2;
 
   const wrap = $('studyCards');
   if (!list.length) {
-    wrap.innerHTML = '<p class="empty">' + (q ? 'Nenhum estudo encontrado para essa pesquisa.' : 'Nenhum estudo ainda. Crie um novo estudo para começar.') + '</p>';
+    wrap.innerHTML = '<p class="empty">' + (q ? 'Nenhum estudo encontrado para essa pesquisa.' : team ? 'Nenhum estudo compartilhado com este time ainda (👥 Compartilhar, no menu do estudo).' : filter !== 'all' ? 'Nenhum estudo neste filtro.' : 'Nenhum estudo ainda. Crie um novo estudo para começar.') + '</p>';
     return;
   }
   wrap.innerHTML = list.map(s => {
@@ -66,16 +104,23 @@ export function renderDashboard() {
     else if (t && !T.isIdle(t)) badge = '<span class="timer-badge paused" title="Cronômetro pausado">⏸ Pausado</span>';
     const shared = owner ? '' :
       '<span class="share-badge">👥 ' + (acc.role === 'viewer' ? 'Somente leitura' : 'Pode editar') + ' · ' + escapeHtml(acc.ownerEmail || 'compartilhado') + '</span>';
-    return '<div class="study-card" data-id="' + escapeHtml(s.id) + '">' +
+    const teamNames = teamsOfStudy(s.id).map(id => (cachedTeams().find(t => t.id === id) || {}).name).filter(Boolean);
+    const teamBadge = teamNames.length ? '<span class="share-badge">🏢 ' + escapeHtml(teamNames.join(', ')) + '</span>' : '';
+    const sampling = s.kind === 'sampling';
+    const count = sampling
+      ? (s.observations || []).length + ' observações'
+      : s.records.length + ' registros · ' + countCycles(s) + ' ciclos';
+    return '<div class="study-card' + (sampling ? ' kind-sampling' : '') + '" data-id="' + escapeHtml(s.id) + '">' +
       '<div class="study-card-head"><b>' + escapeHtml(s.name) + '</b>' + badge + '</div>' +
-      shared +
+      (sampling ? '<span class="kind-badge">🎲 Amostragem do trabalho</span>' : '') +
+      shared + teamBadge +
       '<div class="study-card-meta">' +
         (s.process ? '<span>' + FIELD_LABELS.process + ': ' + escapeHtml(s.process) + '</span>' : '') +
         (s.operator ? '<span>' + FIELD_LABELS.operator + ': ' + escapeHtml(s.operator) + '</span>' : '') +
         (s.observer ? '<span>' + FIELD_LABELS.observer + ': ' + escapeHtml(s.observer) + '</span>' : '') +
         '<span>Criado: ' + fmtDate(s.createdAt) + '</span>' +
         '<span>Últ. edição: ' + fmtDate(s.updatedAt) + '</span>' +
-        '<span>' + s.records.length + ' registros · ' + countCycles(s) + ' ciclos</span>' +
+        '<span>' + count + '</span>' +
       '</div>' +
       '<div class="study-card-actions">' +
         '<button type="button" class="cta" data-action="open-study">Abrir</button>' +
@@ -104,6 +149,10 @@ export function duplicateStudy(id) {
   delete clone.fieldTs;
   delete clone.deletedRecords;
   delete clone.deletedStages;
+  delete clone.deletedCategories;
+  delete clone.deletedObservations;
+  // as fotos ficam no estudo original (o acesso a elas segue o estudo)
+  clone.records.forEach(r => { delete r.photos; });
   clone.history = [{ ts: now, text: 'Estudo duplicado de "' + s.name + '"' }];
   clone.name = uniqueCopyName(s.name, storage.listStudies().map(x => x.name));
   storage.putStudy(clone);

@@ -7,7 +7,8 @@ const browser = Object.fromEntries([
   'TextEncoder', 'TextDecoder', 'fetch', 'Request', 'Response', 'Headers', 'caches', 'self',
   'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame',
   'console', 'alert', 'confirm', 'prompt', 'getComputedStyle', 'matchMedia', 'performance',
-  'Event', 'CustomEvent', 'DataView', 'Uint8Array', 'Uint32Array', 'globalThis'
+  'Event', 'CustomEvent', 'DataView', 'Uint8Array', 'Uint32Array', 'globalThis',
+  'File', 'Image', 'createImageBitmap', 'history', 'cancelAnimationFrame'
 ].map(g => [g, 'readonly']));
 
 const node = Object.fromEntries(['process', 'Buffer', 'console', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'URL', 'TextEncoder', 'globalThis', 'structuredClone', 'crypto']

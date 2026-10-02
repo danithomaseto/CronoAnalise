@@ -7,6 +7,8 @@
  * @property {'VA'|'NVA'|'Espera'|'Transporte'} type
  * @property {number} pos             ordem (mescla entre aparelhos)
  * @property {boolean} [countsOutput] conta para a produção
+ * @property {string} [station]       posto de trabalho (balanceamento de linha)
+ * @property {Object<string, string>} [wh] avaliação Westinghouse (skill, effort, conditions, consistency)
  * @property {string} [u]             ISO da última edição
  */
 
@@ -24,6 +26,28 @@
  * @property {boolean} [excluded]     ignorado nos cálculos
  * @property {boolean} [interruption] interrupção (elemento estranho)
  * @property {string} [note]
+ * @property {{id: string, path: string, ts?: string}[]} [photos] fotos (Supabase Storage)
+ */
+
+/**
+ * @typedef {Object} SamplingCategory  Categoria da amostragem do trabalho
+ * @property {string} id
+ * @property {string} name
+ * @property {boolean} productive
+ * @property {number} pos
+ * @property {string} [u]
+ */
+
+/**
+ * @typedef {Object} Observation       Observação da amostragem do trabalho
+ * @property {string} id
+ * @property {string} ts
+ * @property {string} cat              id da categoria
+ * @property {string} catName
+ * @property {boolean} productive
+ * @property {string} [note]
+ * @property {boolean} [excluded]
+ * @property {string} [u]
  */
 
 /**
@@ -48,6 +72,13 @@
  * @property {Object<string, string>} [fieldTs]         data de edição de cada campo
  * @property {Object<string, string>} [deletedRecords]  lápides de registros
  * @property {Object<string, string>} [deletedStages]   lápides de etapas
+ * @property {'sampling'} [kind]      tipo do estudo (ausente = cronoanálise)
+ * @property {SamplingCategory[]} [categories]
+ * @property {Observation[]} [observations]
+ * @property {{start: string, end: string, count: number}} [samplingPlan]
+ * @property {Object<string, string>} [deletedCategories]
+ * @property {Object<string, string>} [deletedObservations]
+ * @property {Object} [a3]            relatório A3 (textos e plano de ação)
  */
 
 /**

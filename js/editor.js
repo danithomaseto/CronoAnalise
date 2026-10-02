@@ -4,14 +4,18 @@
      editor-stages.js   etapas (cadastro, edição, ordem)
      editor-records.js  tabela de registros
      editor-stats.js    indicadores, takt e gráficos
+     editor-balance.js  balanceamento de linha (postos × takt)
+     editor-sampling.js amostragem do trabalho (estudos do tipo "sampling")
+     editor-a3.js       relatório A3
      editor-history.js  linha do tempo e versões no servidor */
 
 import { FIELD_LABELS } from './config.js';
 import * as storage from './storage.js';
 import { computeStats } from './core/stats.js';
-import { buildCSV } from './core/csv.js';
+import { samplingStats } from './core/sampling.js';
+import { buildCSV, buildSamplingCSV } from './core/csv.js';
 import { createWorkbook } from './core/xlsx.js';
-import { buildReportSheets } from './core/report.js';
+import { buildReportSheets, buildSamplingSheets } from './core/report.js';
 import { createStudy, nextStagePos } from './core/model.js';
 import { fmtDate, escapeHtml, parseNumber, uid, safeFilename, autoStudyName, stableStringify } from './core/format.js';
 import { $, showToast, downloadFile } from './ui.js';
@@ -19,6 +23,9 @@ import * as timer from './editor-timer.js';
 import * as stages from './editor-stages.js';
 import * as records from './editor-records.js';
 import * as statsUI from './editor-stats.js';
+import * as balanceUI from './editor-balance.js';
+import * as samplingUI from './editor-sampling.js';
+import * as a3UI from './editor-a3.js';
 import * as history from './editor-history.js';
 
 const HISTORY_LIMIT = 50;
@@ -33,12 +40,15 @@ export const S = {
 let pendingSave = null; // debounce da digitação
 let requestSync = () => {};
 let onDeleted = () => {};
+let onStudyDeleted = () => {};
+let statsMemo = { study: null, key: '', value: null };
 
 export const nowIso = () => new Date().toISOString();
 
 export function initEditor(opts) {
   requestSync = opts.requestSync || requestSync;
   onDeleted = opts.onDeleted || onDeleted;
+  onStudyDeleted = opts.onStudyDeleted || onStudyDeleted;
 
   const main = $('editorMain');
   main.addEventListener('input', onFieldInput);
@@ -52,7 +62,14 @@ export function initEditor(opts) {
   stages.init();
   records.init();
   statsUI.init();
+  balanceUI.init();
+  samplingUI.init();
+  a3UI.init();
   history.init();
+}
+
+export function isSampling() {
+  return !!(S.current && S.current.kind === 'sampling');
 }
 
 export function getCurrent() { return S.current; }
@@ -71,19 +88,25 @@ export function openStudy(id) {
   return true;
 }
 
-export function newStudy(template = null) {
+export function newStudy(template = null, kind = undefined) {
   flush();
   const now = nowIso();
-  const s = createStudy({ id: uid('study'), now });
+  const k = template ? template.kind : kind;
+  const s = createStudy({ id: uid('study'), now, kind: k });
   if (template) {
     s.name = template.name + ' (novo)';
-    ['process', 'observer', 'rating', 'allowance', 'demand', 'availableMin'].forEach(k => {
-      if (template[k] !== undefined && template[k] !== '') s[k] = template[k];
+    ['process', 'observer', 'rating', 'allowance', 'demand', 'availableMin', 'samplingPlan'].forEach(f => {
+      if (template[f] !== undefined && template[f] !== '') s[f] = JSON.parse(JSON.stringify(template[f]));
     });
     s.stages = template.stages.map((st, i) => ({
       id: uid('st'), name: st.name, type: st.type, pos: i, u: now,
-      ...(st.countsOutput ? { countsOutput: true } : {})
+      ...(st.countsOutput ? { countsOutput: true } : {}),
+      ...(st.station ? { station: st.station } : {}),
+      ...(st.wh ? { wh: { ...st.wh } } : {})
     }));
+    if (k === 'sampling') {
+      s.categories = (template.categories || []).map((c, i) => ({ id: uid('cat'), name: c.name, productive: !!c.productive, pos: i, u: now }));
+    }
     s.history = [{ ts: now, text: 'Estudo criado a partir do modelo "' + template.name + '"' }];
   }
   S.current = s;
@@ -95,10 +118,20 @@ export function newStudy(template = null) {
 function enter() {
   S.readonly = !S.unsaved && !storage.canEdit(S.current.id);
   document.body.classList.toggle('readonly', S.readonly);
+  applyKind();
   timer.enter();
   showTab('crono');
   renderAll();
   if (S.readonly) showToast('Estudo compartilhado com você somente para leitura');
+}
+
+/* Cronoanálise ou amostragem do trabalho: mostra as seções do tipo do estudo. */
+function applyKind() {
+  const sampling = isSampling();
+  document.body.classList.toggle('kind-sampling', sampling);
+  $('tabCrono').textContent = sampling ? 'Amostragem' : 'Cronômetro';
+  $('studyPanelTitle').textContent = sampling ? 'Estudo de amostragem do trabalho' : 'Estudo';
+  if (sampling) samplingUI.enter(); else samplingUI.leave();
 }
 
 export function close() {
@@ -106,8 +139,9 @@ export function close() {
   S.current = null;
   S.unsaved = false;
   S.readonly = false;
-  document.body.classList.remove('readonly');
+  document.body.classList.remove('readonly', 'kind-sampling');
   timer.leave();
+  samplingUI.leave();
 }
 
 /* ---------- Gravação ---------- */
@@ -139,7 +173,8 @@ export function persist(historyText) {
     S.current = merged;
     requestSync();
     // a mesclagem trouxe algo de outro aparelho? redesenha o que mudou
-    if (merged.records.length !== before.records.length || merged.stages.length !== before.stages.length) {
+    if (merged.records.length !== before.records.length || merged.stages.length !== before.stages.length ||
+        (merged.observations || []).length !== (before.observations || []).length) {
       stages.render();
       refresh();
       timer.renderLastMark();
@@ -186,6 +221,13 @@ export function applyExternalUpdate() {
 /* ---------- Campos do estudo ---------- */
 const NUM_FIELDS = { rating: v => v > 0, allowance: v => v >= 0, demand: v => v > 0, availableMin: v => v > 0 };
 
+/* Campos com dois controles na tela (ex.: tempo disponível na cronoanálise e na amostragem). */
+function syncTwins(field, source) {
+  document.querySelectorAll('#editorMain [data-field="' + field + '"]').forEach(el => {
+    if (el !== source && document.activeElement !== el) el.value = source.value;
+  });
+}
+
 function onFieldInput(e) {
   const f = e.target.dataset.field;
   if (!f || !S.current || S.readonly) return;
@@ -196,6 +238,7 @@ function onFieldInput(e) {
     if (trimmed === '') delete S.current[f];
     else if (NUM_FIELDS[f](n)) S.current[f] = n;
     else return;
+    syncTwins(f, e.target);
     refresh();
   } else {
     S.current[f] = v;
@@ -218,17 +261,50 @@ function onFieldChange(e) {
   if (f === 'name' && !$('studyName').value.trim()) $('studyName').value = S.current.name;
 }
 
-/* ---------- Indicadores ---------- */
+/* ---------- Indicadores ----------
+   Memorizados: o mesmo estudo (mesmo objeto) com as mesmas preferências não é
+   recalculado — em estudos grandes, várias partes da tela usam o resultado. */
 export function getStats() {
-  return computeStats(S.current, storage.getPrefs());
+  const prefs = storage.getPrefs();
+  const key = prefs.confidence + '|' + prefs.error;
+  if (statsMemo.study === S.current && statsMemo.key === key && statsMemo.value && statsMemo.sig === statsSig(S.current)) return statsMemo.value;
+  const value = isSampling() ? samplingStats(S.current, prefs) : computeStats(S.current, prefs);
+  statsMemo = { study: S.current, key, value, sig: statsSig(S.current) };
+  return value;
 }
 
-/* Recalcula e redesenha indicadores + registros. */
+/* Assinatura barata do conteúdo que entra nos cálculos (o objeto pode ser
+   alterado no lugar entre um cálculo e outro). */
+function statsSig(s) {
+  if (!s) return '';
+  const recs = s.kind === 'sampling' ? (s.observations || []) : (s.records || []);
+  const last = recs[recs.length - 1];
+  return [recs.length, s.updatedAt, last ? (last.u || last.ts || '') + last.id : '',
+    s.rating, s.allowance, s.demand, s.availableMin, (s.stages || []).length, (s.categories || []).length].join('|');
+}
+
+export function invalidateStats() {
+  statsMemo = { study: null, key: '', value: null };
+}
+
+/* Recalcula e redesenha indicadores + registros. No Modo Campo esses painéis
+   ficam escondidos: o redesenho espera a saída do modo (toques mais rápidos). */
+let staleInField = false;
+
 export function refresh() {
   if (!S.current) return;
+  invalidateStats();
+  if (isSampling()) { samplingUI.render(); return; }
+  if (document.body.classList.contains('field')) { staleInField = true; return; }
+  staleInField = false;
   const st = getStats();
   records.render(st);
   statsUI.render(st);
+  balanceUI.render(st);
+}
+
+export function fieldModeChanged(on) {
+  if (!on && staleInField) refresh();
 }
 
 /* ---------- Metadados / lista / campos ---------- */
@@ -261,6 +337,7 @@ function renderFields() {
   set('observer', c.observer);
   set('notes', c.notes);
   ['rating', 'allowance', 'demand', 'availableMin'].forEach(k => set(k, num(c[k])));
+  set('samplingMinutes', num(c.availableMin));
   if (['rating', 'allowance', 'demand', 'availableMin'].some(k => c[k] !== undefined)) $('stdParams').open = true;
   document.querySelectorAll('#editorMain [data-field]').forEach(el => { el.readOnly = S.readonly; });
   $('printTitle').textContent = c.name;
@@ -272,24 +349,36 @@ function renderFields() {
 export function renderAll() {
   if (!S.current) return;
   renderFields();
-  stages.render();
+  if (isSampling()) samplingUI.renderAll(); else stages.render();
   refresh();
   renderStudyMeta();
   renderStudyList();
   history.render();
+  a3UI.render();
   timer.renderLastMark();
   timer.updateUI();
 }
 
+export function currentTab() {
+  if (!$('editorHistory').hidden) return 'hist';
+  if (!$('editorA3').hidden) return 'a3';
+  return 'crono';
+}
+
 export function showTab(tab) {
-  const hist = tab === 'hist';
-  $('editorMain').hidden = hist;
-  $('editorHistory').hidden = !hist;
-  $('tabCrono').classList.toggle('active', !hist);
-  $('tabHist').classList.toggle('active', hist);
-  $('tabCrono').setAttribute('aria-selected', String(!hist));
-  $('tabHist').setAttribute('aria-selected', String(hist));
-  if (hist && S.current) history.render(); else if (S.current) statsUI.relayout();
+  const t = ['hist', 'a3'].includes(tab) ? tab : 'crono';
+  $('editorMain').hidden = t !== 'crono';
+  $('editorHistory').hidden = t !== 'hist';
+  $('editorA3').hidden = t !== 'a3';
+  [['tabCrono', 'crono'], ['tabA3', 'a3'], ['tabHist', 'hist']].forEach(([id, k]) => {
+    $(id).classList.toggle('active', t === k);
+    $(id).setAttribute('aria-selected', String(t === k));
+  });
+  if (!S.current) return;
+  if (t === 'hist') history.render();
+  else if (t === 'a3') a3UI.render();
+  else if (isSampling()) samplingUI.relayout();
+  else { statsUI.relayout(); balanceUI.relayout(); }
 }
 
 /* ---------- Excluir / exportar / imprimir ---------- */
@@ -308,6 +397,7 @@ export function deleteCurrent(leaveShare) {
   if (!wasUnsaved) {
     storage.removeStudy(id);
     requestSync();
+    onStudyDeleted(id, c);
   }
   storage.removeTimer(id);
   timer.forget(id);
@@ -319,11 +409,22 @@ export function forgetStudy(id) {
   timer.forget(id);
 }
 
+export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export function buildCSVText() {
+  return isSampling() ? buildSamplingCSV(S.current, getStats()) : buildCSV(S.current, getStats());
+}
+
+/* Planilha do estudo atual: { filename, bytes } */
+export function buildXLSX() {
+  const sheets = isSampling() ? buildSamplingSheets(S.current, getStats()) : buildReportSheets(S.current, getStats());
+  return { filename: safeFilename(S.current.name || 'Estudo') + '.xlsx', bytes: createWorkbook(sheets) };
+}
+
 export function exportCSV() {
   if (!S.current) return;
   flush();
-  const csv = buildCSV(S.current, getStats());
-  downloadFile(safeFilename(S.current.name || 'Estudo') + '.csv', '﻿' + csv, 'text/csv;charset=utf-8;');
+  downloadFile(safeFilename(S.current.name || 'Estudo') + '.csv', '﻿' + buildCSVText(), 'text/csv;charset=utf-8;');
   persist('Exportado CSV');
   showToast('CSV exportado');
 }
@@ -331,8 +432,8 @@ export function exportCSV() {
 export function exportXLSX() {
   if (!S.current) return;
   flush();
-  const bytes = createWorkbook(buildReportSheets(S.current, getStats()));
-  downloadFile(safeFilename(S.current.name || 'Estudo') + '.xlsx', bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  const { filename, bytes } = buildXLSX();
+  downloadFile(filename, bytes, XLSX_MIME);
   persist('Exportado Excel');
   showToast('Planilha Excel exportada');
 }
@@ -343,8 +444,16 @@ export function printStudy() {
   showTab('crono');
   $('printTitle').textContent = S.current.name;
   $('printDate').textContent = 'Relatório gerado em ' + new Date().toLocaleString('pt-BR');
-  statsUI.relayout(720);
-  setTimeout(() => { window.print(); statsUI.relayout(); }, 50);
+  records.prepareForPrint(true);
+  const relayout = w => { if (isSampling()) samplingUI.relayout(w); else { statsUI.relayout(w); balanceUI.relayout(w); } };
+  relayout(720);
+  setTimeout(() => { window.print(); relayout(); records.prepareForPrint(false); }, 50);
+}
+
+export function printA3() {
+  if (!S.current) return;
+  flush();
+  a3UI.print();
 }
 
 export function saveNow() {

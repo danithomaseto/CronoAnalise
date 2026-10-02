@@ -13,9 +13,14 @@
      Na transição, copia os estudos de crono_studies (que fica intacta) e continua
      lendo essa tabela se alguma aba antiga ainda gravar nela.
 
+   Tempo real (migração 003): o app assina as mudanças de crono_study pelo
+   Supabase Realtime e busca as alterações assim que outro aparelho grava. Sem
+   tempo real (ou se a conexão cair), busca periodicamente enquanto a aba está
+   visível.
+
    Falhou (offline)? Tenta de novo com espera crescente e quando a conexão volta. */
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY, ADMIN_EMAIL } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, ADMIN_EMAIL, PHOTO_BUCKET } from './config.js';
 import {
   normalizeStore, normalizeStudy, mergeStores, mergeFirstPull, pruneTombstones, emptyStore
 } from './core/model.js';
@@ -32,6 +37,9 @@ const SHARES = 'crono_study_share';
 const RPC_MISSING_KEY = 'cronoanalise:rpcMissingAt';
 const PULL_OVERLAP_MS = 60000;   // relê 1 min antes do último pull (transações que confirmaram fora de ordem)
 const MODE_RECHECK_MS = 10 * 60000;
+const POLL_MS = 60000;           // sem tempo real: busca alterações a cada 1 min (aba visível)
+const POLL_LIVE_MS = 5 * 60000;  // com tempo real: rede de segurança a cada 5 min
+const FULL_PULL_MS = 15 * 60000; // busca completa (estudos recém-compartilhados) a cada 15 min
 
 export function isMissing(error) {
   if (!error) return false;
@@ -120,6 +128,15 @@ async function fetchMyShares(email) {
   return data || [];
 }
 
+/* Papel em cada estudo compartilhado comigo: direto ou por time (migração 003);
+   sem a 003, só os compartilhamentos diretos. */
+async function fetchMyRoles(email) {
+  const r = await sb.rpc('crono_my_study_roles');
+  if (!r.error) return { roles: r.data || [], teams: true };
+  if (!isMissing(r.error)) throw r.error;
+  return { roles: await fetchMyShares(email), teams: false };
+}
+
 function rowToStore(row) {
   const st = emptyStore();
   if (row.deleted_at) st.deleted[row.id] = row.deleted_at;
@@ -161,7 +178,7 @@ function mergeIntoLocal(remote) {
  * @param onMerged  (changedIds)     — o store local mudou por causa da nuvem
  * @param onMode    (mode)           — 'blob' | 'rows'
  */
-export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = () => {} } = {}) {
+export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = () => {}, onLive = () => {} } = {}) {
   let userId = null;
   let userEmail = '';
   let running = false;
@@ -172,6 +189,14 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
   let retryDelay = 0;
   let known = null;      // blob: { version, exists, snapshot }
   let lastModeCheck = 0;
+  let channel = null;    // Supabase Realtime
+  let live = false;
+  let remoteTimer = null;
+  let remoteFull = false;
+  let pollTimer = null;
+  let lastAttempt = 0;
+  let lastFull = 0;
+  let rtRetryAt = 0;     // depois de uma falha do tempo real, espera antes de tentar de novo
 
   function clearRetry() {
     clearTimeout(retryTimer);
@@ -179,6 +204,7 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
   }
 
   function reset(newUserId, email = '') {
+    stopRealtime();
     userId = newUserId;
     userEmail = String(email || '').toLowerCase();
     known = null;
@@ -186,9 +212,90 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
     again = false;
     againOpts = {};
     lastModeCheck = 0;
+    lastAttempt = 0;
+    lastFull = 0;
+    rtRetryAt = 0;
     clearTimeout(debounce);
     clearRetry();
     retryDelay = 0;
+    clearInterval(pollTimer);
+    pollTimer = null;
+    if (newUserId) pollTimer = setInterval(poll, 15000);
+  }
+
+  /* ---------- tempo real ---------- */
+  function setLive(v) {
+    if (live === v) return;
+    live = v;
+    onLive(v);
+  }
+
+  function stopRealtime() {
+    clearTimeout(remoteTimer);
+    remoteTimer = null;
+    if (channel) {
+      const ch = channel;
+      channel = null;
+      try { sb.removeChannel(ch); } catch (e) { /* já fechado */ }
+    }
+    setLive(false);
+  }
+
+  /* Mudança no servidor: se não foi este aparelho que gravou, busca as alterações. */
+  function onRemoteChange(payload, full) {
+    const row = payload && payload.new;
+    if (row && row.id && row.updated_at) {
+      const mine = storage.getSyncMeta().versions[row.id];
+      if (mine && tsOf(mine) === tsOf(row.updated_at)) return; // eco da própria gravação
+    }
+    remoteFull = remoteFull || !!full;
+    clearTimeout(remoteTimer);
+    remoteTimer = setTimeout(() => {
+      const f = remoteFull;
+      remoteFull = false;
+      syncNow({ pull: true, full: f });
+    }, 400);
+  }
+
+  function startRealtime() {
+    if (channel || !sb || !userId || typeof sb.channel !== 'function' || Date.now() < rtRetryAt) return;
+    const meta = storage.getSyncMeta();
+    if (meta.mode !== 'rows') return;
+    const uid = userId;
+    try {
+      let ch = sb.channel('crono-sync-' + uid)
+        .on('postgres_changes', { event: '*', schema: 'public', table: ROWS }, p => onRemoteChange(p, false));
+      if (userEmail) ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: SHARES, filter: 'email=eq.' + userEmail }, () => onRemoteChange(null, true));
+      if (meta.teams && userEmail) {
+        ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: 'crono_team_member', filter: 'email=eq.' + userEmail }, () => onRemoteChange(null, true))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'crono_study_team_share' }, () => onRemoteChange(null, true));
+      }
+      channel = ch;
+      ch.subscribe(status => {
+        if (channel !== ch || userId !== uid) return;
+        if (status === 'SUBSCRIBED') setLive(true);
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setLive(false);
+          rtRetryAt = Date.now() + 5 * 60000; // ex.: banco sem a migração 003 (tabela fora do Realtime)
+          // tenta de novo mais tarde (o polling cobre enquanto isso)
+          if (channel === ch) { channel = null; try { sb.removeChannel(ch); } catch (e) { /* ok */ } }
+        }
+      });
+    } catch (e) {
+      console.warn('Tempo real indisponível:', e);
+      channel = null;
+    }
+  }
+
+  /* Rede de segurança: busca periódica enquanto a aba está visível. */
+  function poll() {
+    if (!userId || running) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const now = Date.now();
+    if (!channel && storage.getSyncMeta().mode === 'rows') startRealtime();
+    if (now - lastAttempt < (live ? POLL_LIVE_MS : POLL_MS)) return;
+    syncNow({ pull: true, full: now - lastFull > FULL_PULL_MS });
   }
 
   function scheduleRetry() {
@@ -265,13 +372,16 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
     const doFull = full || first || !meta.lastPullAt || !!meta.legacyIds;
     const since = doFull ? null : new Date(tsOf(meta.lastPullAt) - PULL_OVERLAP_MS).toISOString();
 
-    const [rows, myShares, blobHead] = await Promise.all([
+    const [rows, myRoles, blobHead] = await Promise.all([
       fetchRows(since),
-      fetchMyShares(userEmail),
+      fetchMyRoles(userEmail),
       sb.from(BLOB).select('updated_at').eq('user_id', uid).maybeSingle()
     ]);
     if (userId !== uid) return;
     if (blobHead.error) throw blobHead.error;
+    const myShares = myRoles.roles;
+    if (myRoles.teams !== meta.teams) storage.setSyncMeta({ teams: myRoles.teams });
+    if (doFull) lastFull = Date.now();
 
     // Estudos da tabela antiga: na transição e se alguma aba antiga gravou lá
     let blob = null;
@@ -430,6 +540,7 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
     if (!sb || !userId) return;
     if (running) { again = true; againOpts = { pull: againOpts.pull || opts.pull, full: againOpts.full || opts.full }; return; }
     running = true;
+    lastAttempt = Date.now();
     clearTimeout(debounce);
     clearRetry();
     const uid = userId;
@@ -443,6 +554,7 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
       });
       retryDelay = 0;
       if (userId === uid) onStatus(storage.isDirty() ? 'pending' : 'saved');
+      if (userId === uid) startRealtime();
     } catch (e) {
       console.warn('Sincronização falhou:', e);
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -479,7 +591,7 @@ export function createSync({ onStatus = () => {}, onMerged = () => {}, onMode = 
     await runLocked(() => pushOne(userId, id));
   }
 
-  return { reset, syncNow, request, pushStudyNow, getMode: () => storage.getSyncMeta().mode };
+  return { reset, syncNow, request, pushStudyNow, getMode: () => storage.getSyncMeta().mode, isLive: () => live };
 }
 
 /* ================= Compartilhamento (modo rows) ================= */
@@ -563,4 +675,109 @@ export async function logActivity(user) {
   } catch (e) {
     console.warn('Não foi possível registrar atividade do usuário:', e);
   }
+}
+
+/* ================= Times (migração 003) ================= */
+export async function listTeams(uid) {
+  const [t, m] = await Promise.all([
+    sb.from('crono_team').select('id, name, owner_id, created_at').order('name'),
+    sb.from('crono_team_member').select('team_id, email, role, created_at').order('created_at')
+  ]);
+  if (t.error) throw t.error;
+  if (m.error) throw m.error;
+  return (t.data || []).map(team => ({
+    ...team,
+    members: (m.data || []).filter(x => x.team_id === team.id),
+    myRole: team.owner_id === uid ? 'owner' : null
+  }));
+}
+
+export async function createTeam(name) {
+  const { data, error } = await sb.from('crono_team').insert({ name: String(name).trim() }).select('id, name, owner_id');
+  if (error) throw error;
+  return data && data[0];
+}
+
+export async function deleteTeam(id) {
+  const { error } = await sb.from('crono_team').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function addTeamMember(teamId, email, role) {
+  const { error } = await sb.from('crono_team_member').upsert({ team_id: teamId, email: String(email).trim().toLowerCase(), role }, { onConflict: 'team_id,email' });
+  if (error) throw error;
+}
+
+export async function removeTeamMember(teamId, email) {
+  const { error } = await sb.from('crono_team_member').delete().eq('team_id', teamId).eq('email', String(email).toLowerCase());
+  if (error) throw error;
+}
+
+export async function listTeamShares(studyId) {
+  const q = sb.from('crono_study_team_share').select('study_id, team_id, role');
+  const { data, error } = studyId ? await q.eq('study_id', studyId) : await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addTeamShare(studyId, teamId, role) {
+  const { error } = await sb.from('crono_study_team_share').upsert({ study_id: studyId, team_id: teamId, role }, { onConflict: 'study_id,team_id' });
+  if (error) throw error;
+}
+
+export async function removeTeamShare(studyId, teamId) {
+  const { error } = await sb.from('crono_study_team_share').delete().eq('study_id', studyId).eq('team_id', teamId);
+  if (error) throw error;
+}
+
+/* ================= Fotos (Supabase Storage, migração 003) ================= */
+export async function uploadPhoto(path, blob) {
+  const body = await blob.arrayBuffer();
+  const { error } = await sb.storage.from(PHOTO_BUCKET).upload(path, body, { contentType: blob.type || 'image/jpeg', upsert: true });
+  if (error) throw error;
+}
+
+export async function signedPhotoUrl(path, seconds = 3600) {
+  const { data, error } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, seconds);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function removePhotos(paths) {
+  if (!paths.length) return;
+  const { error } = await sb.storage.from(PHOTO_BUCKET).remove(paths);
+  if (error) throw error;
+}
+
+/* Apaga todas as fotos de um estudo (pasta "<estudo>/"). */
+export async function removeStudyPhotos(studyId) {
+  const { data, error } = await sb.storage.from(PHOTO_BUCKET).list(studyId, { limit: 1000 });
+  if (error) throw error;
+  await removePhotos((data || []).filter(f => f && f.name).map(f => studyId + '/' + f.name));
+}
+
+/* ================= Erros do app (migração 003) ================= */
+export async function insertClientErrors(rows) {
+  if (!sb) return { error: { message: 'sem cliente' } };
+  const { error } = await sb.from('crono_client_error').insert(rows);
+  return { error };
+}
+
+export async function listClientErrors(limit = 200) {
+  const { data, error } = await sb.from('crono_client_error')
+    .select('id, created_at, email, message, stack, url, app_version, user_agent, context')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function clearClientErrors() {
+  const { error } = await sb.from('crono_client_error').delete().gt('id', 0);
+  if (error) throw error;
+}
+
+export async function purgeOldData() {
+  const { data, error } = await sb.rpc('crono_purge_old_data');
+  if (error) throw error;
+  return data || {};
 }
