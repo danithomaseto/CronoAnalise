@@ -1200,8 +1200,10 @@ T('login no visual da empresa: título, olho da senha e entrar com a conta Micro
   await page.goto(BASE);
   await page.waitForSelector('#authEmail', { state: 'visible' });
   check((await page.textContent('#loginTitle')) === 'CronoAnalise System', 'título "CronoAnalise System"');
-  check((await page.textContent('#btnMicrosoft')).includes('Acesso com e-mail DHL'), 'botão "Acesso com e-mail DHL"');
-  check(await page.locator('#btnMicrosoft .ms-logo rect').count() === 4, 'logo da Microsoft (4 quadrados)');
+  await page.waitForTimeout(300);
+  check(await page.locator('#btnMicrosoft').isHidden() && await page.locator('#msSep').isHidden(), 'provedor Microsoft desligado no Supabase: botão escondido');
+  check(await page.$eval('#btnOneDrive', b => b.hidden), 'sem o provedor, "Salvar no OneDrive" também fica escondido');
+  check((await page.textContent('#loginCredit')).includes('Daniel Thomaseto'), 'assinatura do autor na tela de login');
   check((await page.$eval('.login-submit', b => getComputedStyle(b).backgroundColor)) === 'rgb(255, 204, 0)', 'botão Entrar no amarelo DHL');
   check((await page.$eval('.login-brand', b => getComputedStyle(b).backgroundColor)) === 'rgb(255, 204, 0)', 'faixa da marca amarela');
   await page.screenshot({ path: OUT + 'login-dhl.png' });
@@ -1211,10 +1213,12 @@ T('login no visual da empresa: título, olho da senha e entrar com a conta Micro
   await page.click('#btnShowPass');
   check((await page.getAttribute('#authPass', 'type')) === 'password', 'olho esconde a senha de novo');
 
-  await page.click('#btnMicrosoft');
-  await page.waitForFunction(() => document.getElementById('authError').textContent.length > 0);
-  check((await page.textContent('#authError')).includes('ainda não foi ativado'), 'provedor desligado no Supabase: aviso claro, sem sair da página');
   fake.setAzure(true);
+  await page.reload();
+  await page.waitForSelector('#btnMicrosoft', { state: 'visible' });
+  check(true, 'provedor ativado no Supabase: botão aparece sozinho (sem deploy)');
+  check((await page.textContent('#btnMicrosoft')).includes('Acesso com e-mail DHL'), 'botão "Acesso com e-mail DHL"');
+  check(await page.locator('#btnMicrosoft .ms-logo rect').count() === 4, 'logo da Microsoft (4 quadrados)');
   await page.click('#btnMicrosoft');
   await page.waitForSelector('body.authed', { timeout: 10000 });
   await page.waitForFunction(() => !document.body.classList.contains('booting'));
@@ -1222,6 +1226,7 @@ T('login no visual da empresa: título, olho da senha e entrar com a conta Micro
   const last = fake.authorizeLog[fake.authorizeLog.length - 1];
   check(last.provider === 'azure' && /email/.test(last.scopes) && !/Files/.test(last.scopes), 'login comum pede só o e-mail (OneDrive só quando usar)');
   check(await page.evaluate(() => !!sessionStorage.getItem('cronoanalise:graphToken')), 'token do Microsoft Graph guardado só nesta aba');
+  check(!(await page.$eval('#btnOneDrive', b => b.hidden)), 'com o provedor ativo, "Salvar no OneDrive" aparece no menu');
   check(!page.url().includes('access_token'), 'tokens removidos da barra de endereço');
   check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
   await ctx.close();

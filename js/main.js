@@ -165,7 +165,7 @@ function restoreView() {
 function applyBrand() {
   $('loginTitle').textContent = BRAND.title;
   $('msLabel').textContent = BRAND.microsoftLabel;
-  $('btnMicrosoft').hidden = !BRAND.microsoftLogin;
+  showMicrosoft(BRAND.microsoftLogin && readMsEnabled());
   $('loginFooter').textContent = BRAND.footer;
   $('loginCredit').textContent = CREDIT;
   $('appCredit').textContent = CREDIT;
@@ -175,6 +175,27 @@ function applyBrand() {
     img.alt = BRAND.title;
     $('loginBrand').replaceChildren(img);
   }
+}
+
+/* Botão "Acesso com e-mail DHL" e "Salvar no OneDrive": só aparecem quando o
+   provedor Azure está ativo no Supabase. Enquanto o TI não registra o app no
+   Entra ID, ficam escondidos; quando ativarem, aparecem sozinhos (sem deploy).
+   O último resultado fica guardado para não "piscar" ao abrir. */
+const MS_ENABLED_KEY = 'cronoanalise:msEnabled';
+function readMsEnabled() {
+  try { return localStorage.getItem(MS_ENABLED_KEY) === '1'; } catch (e) { return false; }
+}
+function showMicrosoft(on) {
+  $('btnMicrosoft').hidden = !on;
+  $('msSep').hidden = !on;
+  $('btnOneDrive').hidden = !on;
+}
+async function refreshMicrosoft() {
+  if (!BRAND.microsoftLogin) return showMicrosoft(false);
+  const enabled = await auth.microsoftEnabled();
+  if (enabled === null) return; // sem rede: mantém o último estado conhecido
+  try { localStorage.setItem(MS_ENABLED_KEY, enabled ? '1' : '0'); } catch (e) { /* ok */ }
+  showMicrosoft(enabled);
 }
 
 /* ---------- Autenticação ---------- */
@@ -868,6 +889,7 @@ function boot() {
   initMenu();
   applyThemeUI();
   applyBrand();
+  refreshMicrosoft();
   editor.labels();
   storage.setWriteErrorHandler(() => showToast('⚠ Não foi possível gravar neste aparelho (armazenamento cheio?) — baixe um backup em Configurações', 6000));
 

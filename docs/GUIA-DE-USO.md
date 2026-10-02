@@ -53,21 +53,21 @@
 
 ![Tela de login](img/01-login.png)
 
-### Opção A: com a conta Microsoft da empresa (recomendado)
+### Com e-mail e senha
 
 1. Abra o aplicativo no navegador do computador ou do celular.
-2. Toque em **"Acesso com e-mail DHL"** (o botão com o logo da Microsoft).
-3. Entre com o seu e-mail e a sua senha corporativos na página da Microsoft.
-4. Pronto: você volta para o CronoAnalise já conectado.
+2. Digite o **E-mail** e a **Senha**. O ícone de olho mostra ou esconde a senha.
+3. Toque em **Entrar**.
+4. Primeira vez? Toque em **"Não tem conta? Criar conta"**, use o e-mail e a senha escolhidos (mínimo 6 caracteres) e confirme pelo link que chega no e-mail.
+5. Esqueceu a senha? Digite o e-mail e toque em **"Esqueceu a senha? Clique aqui."**. Chega um link para criar uma senha nova.
 
-> Se aparecer "O acesso com a conta Microsoft ainda não foi ativado pelo administrador", use a opção B ou fale com quem administra o sistema (veja a [seção 19](#19-configuração-inicial-para-quem-administra-o-sistema)).
+### Com a conta Microsoft da empresa (quando ativado)
 
-### Opção B: com e-mail e senha
+O botão **"Acesso com e-mail DHL"** (com o logo da Microsoft) só aparece depois que o login Microsoft é ativado pelo administrador ([seção 19.2](#192-login-com-a-conta-microsoft)). Enquanto isso, a tela mostra só o login por e-mail e senha. Com o botão disponível:
 
-1. Digite o **E-mail** e a **Senha**. O ícone de olho mostra ou esconde a senha.
-2. Toque em **Entrar**.
-3. Primeira vez? Toque em **"Não tem conta? Criar conta"**, use o e-mail e a senha escolhidos (mínimo 6 caracteres) e confirme pelo link que chega no e-mail.
-4. Esqueceu a senha? Digite o e-mail e toque em **"Esqueceu a senha? Clique aqui."**. Chega um link para criar uma senha nova.
+1. Toque em **"Acesso com e-mail DHL"**.
+2. Entre com o seu e-mail e a sua senha corporativos na página da Microsoft.
+3. Pronto: você volta para o CronoAnalise já conectado.
 
 ### Se a sua conta tem verificação em duas etapas
 
@@ -377,7 +377,7 @@ Com o estudo aberto, toque em **☰** e escolha:
 | **🖨 Relatório / PDF** | Relatório para imprimir ou salvar em PDF, com indicadores, gráficos, tabelas e observações |
 | **🧾 Relatório A3** | Imprime o A3 ([seção 12](#12-relatório-a3)) |
 
-> "Salvar no OneDrive" só aparece funcionando para quem entrou com a **conta Microsoft**.
+> "Salvar no OneDrive" só aparece no menu quando o login Microsoft está ativado ([seção 19.2](#192-login-com-a-conta-microsoft)) e funciona para quem entra com a **conta Microsoft**.
 
 ---
 
@@ -518,6 +518,10 @@ Feito uma única vez. Detalhes técnicos também no [README](../README.md).
 4. **Recuperação de senha:** em **Authentication → URL Configuration**, coloque `https://crono-analise.vercel.app` em *Site URL* (ou em *Redirect URLs*).
 
 ### 19.2 Login com a conta Microsoft
+
+Enquanto este passo não for feito, o botão "Acesso com e-mail DHL" e o "Salvar no OneDrive" ficam escondidos, e o restante do sistema funciona normalmente. Depois de ativar o provedor Azure no Supabase, eles aparecem sozinhos, sem novo deploy.
+
+Em empresas grandes, registrar um aplicativo no Entra ID costuma ser exclusivo do TI (o portal mostra "Você não tem acesso", erro 401). Nesse caso, abra um chamado pedindo exatamente os itens 1 a 4 abaixo e solicite de volta o *client ID*, o *tenant ID*, o valor do *secret* (por canal seguro) e a validade do *secret*. Com eles em mãos, faça você mesmo os passos 5 e 6.
 
 1. No [portal do Azure](https://portal.azure.com) → **Microsoft Entra ID → App registrations → New registration**:
    - nome: "CronoAnalise System";

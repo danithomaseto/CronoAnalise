@@ -550,7 +550,7 @@ A chave pública do Supabase (`sb_publishable_…`) é pública por natureza. **
 
 - **E-mail e senha** (Supabase Auth), com recuperação por e-mail e mensagens de erro traduzidas.
 - **Conta Microsoft** (Entra ID / Azure AD):
-  - antes de redirecionar, o app consulta `/auth/v1/settings` para saber se o provedor está ativo;
+  - o app consulta `/auth/v1/settings` ao abrir. O botão "Acesso com e-mail DHL" e o "Salvar no OneDrive" só aparecem quando o provedor está ativo; o último resultado fica guardado no aparelho (sem "piscar" e offline). Assim, ativar o provedor no Supabase basta para o botão aparecer, sem novo deploy;
   - com o *Tenant URL* do diretório da empresa configurado, só contas da empresa entram;
   - se a pessoa já tinha conta com o mesmo e-mail, o Supabase liga as duas formas de entrar.
 - **Duas etapas (TOTP):**

@@ -100,6 +100,8 @@ O app detecta sozinho o que já foi aplicado; sem a 003, tudo continua funcionan
 
 ### Login com a conta Microsoft ("Acesso com e-mail DHL")
 
+O botão e o "Salvar no OneDrive" só aparecem quando o provedor **Azure** está ativo no Supabase. Até lá ficam escondidos, e quando o provedor é ativado aparecem sozinhos, sem novo deploy. Se o portal do Azure negar acesso (erro 401), peça ao TI o registro do app com os itens 1 a 3 abaixo.
+
 1. No portal do Azure (Entra ID) → *App registrations* → *New registration* (contas só deste diretório). Em *Redirect URI* (Web), use `https://zwfnsknaxqnexeuzvvjn.supabase.co/auth/v1/callback`.
 2. Em *Certificates & secrets*, crie um *client secret*. Em *Token configuration*, adicione a declaração opcional **email**.
 3. Para salvar no OneDrive, em *API permissions* adicione *Microsoft Graph → Delegated → Files.ReadWrite* (o app só pede essa permissão quando a pessoa usa "Salvar no OneDrive"; pode precisar de consentimento do administrador do tenant).

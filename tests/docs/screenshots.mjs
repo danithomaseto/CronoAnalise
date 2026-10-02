@@ -116,8 +116,10 @@ const shotTop = async (page, name, target, height) => {
 
 const jobs = {
   async login() {
-    const { ctx, page } = await open({ width: 1000, height: 760 });
+    const { ctx, page, fake } = await open({ width: 1000, height: 760 });
+    fake.setAzure(false); // como em produção enquanto o TI não ativa o login Microsoft
     await page.goto(BASE); await page.waitForSelector('#authEmail', { state: 'visible' });
+    await page.waitForTimeout(300);
     await page.evaluate(() => document.fonts.ready);
     await shot(page, '01-login');
     await ctx.close();
