@@ -79,7 +79,7 @@ async function loadTeams() {
           '<td><select data-team-role="' + escapeHtml(s.team_id) + '" aria-label="Acesso do time ' + escapeHtml(name(s.team_id)) + '">' +
             '<option value="viewer"' + (s.role === 'viewer' ? ' selected' : '') + '>Ver</option>' +
             '<option value="editor"' + (s.role === 'editor' ? ' selected' : '') + '>Editar</option></select></td>' +
-          '<td><button type="button" class="danger" data-team-unshare="' + escapeHtml(s.team_id) + '">Remover</button></td></tr>').join('') +
+          '<td><button type="button" class="danger icon-btn" data-team-unshare="' + escapeHtml(s.team_id) + '" title="Remover acesso do time" aria-label="Remover acesso do time">✕<span class="rm-label" aria-hidden="true">Remover</span></button></td></tr>').join('') +
         '</tbody></table>'
       : '<p class="empty">Ainda não compartilhado com nenhum time.</p>';
   } catch (e) {
@@ -134,7 +134,7 @@ async function load() {
           '<td><select data-role-for="' + escapeHtml(s.email) + '" aria-label="Acesso de ' + escapeHtml(s.email) + '">' +
             '<option value="viewer"' + (s.role === 'viewer' ? ' selected' : '') + '>Ver</option>' +
             '<option value="editor"' + (s.role === 'editor' ? ' selected' : '') + '>Editar</option></select></td>' +
-          '<td><button type="button" class="danger" data-unshare="' + escapeHtml(s.email) + '">Remover</button></td></tr>'
+          '<td><button type="button" class="danger icon-btn" data-unshare="' + escapeHtml(s.email) + '" title="Remover acesso" aria-label="Remover acesso de ' + escapeHtml(s.email) + '">✕<span class="rm-label" aria-hidden="true">Remover</span></button></td></tr>'
         ).join('') + '</tbody></table>'
       : '<p class="empty">Ainda não compartilhado com ninguém.</p>';
   } catch (e) {

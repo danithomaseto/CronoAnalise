@@ -112,7 +112,7 @@ function renderDetail() {
       (manage ? '<select data-member-role="' + escapeHtml(m.email) + '" aria-label="Papel de ' + escapeHtml(m.email) + '">' +
         '<option value="member"' + (m.role === 'member' ? ' selected' : '') + '>Integrante</option>' +
         '<option value="manager"' + (m.role === 'manager' ? ' selected' : '') + '>Gestor</option></select>' : roleName(m.role)) +
-      '</td><td>' + (manage ? '<button type="button" class="danger" data-member-remove="' + escapeHtml(m.email) + '">Remover</button>' : '') + '</td></tr>').join('') +
+      '</td><td>' + (manage ? '<button type="button" class="danger icon-btn" data-member-remove="' + escapeHtml(m.email) + '" title="Remover do time" aria-label="Remover ' + escapeHtml(m.email) + ' do time">✕<span class="rm-label" aria-hidden="true">Remover</span></button>' : '') + '</td></tr>').join('') +
     '</tbody></table>';
 }
 

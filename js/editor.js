@@ -58,6 +58,7 @@ export function initEditor(opts) {
     if (id && (!S.current || id !== S.current.id)) openStudy(id);
   });
 
+  initPrintHooks();
   timer.init();
   stages.init();
   records.init();
@@ -243,6 +244,7 @@ function onFieldInput(e) {
   } else {
     S.current[f] = v;
     if (f === 'name') $('printTitle').textContent = v;
+    if (f === 'notes') syncNotesPrint();
   }
   touchField(f);
   scheduleSave();
@@ -336,6 +338,7 @@ function renderFields() {
   set('operator', c.operator);
   set('observer', c.observer);
   set('notes', c.notes);
+  syncNotesPrint();
   ['rating', 'allowance', 'demand', 'availableMin'].forEach(k => set(k, num(c[k])));
   set('samplingMinutes', num(c.availableMin));
   if (['rating', 'allowance', 'demand', 'availableMin'].some(k => c[k] !== undefined)) $('stdParams').open = true;
@@ -438,16 +441,39 @@ export function exportXLSX() {
   showToast('Planilha Excel exportada');
 }
 
+/* Observações na impressão: texto corrido (o campo de texto cortaria) e painel
+   escondido quando vazio. */
+function syncNotesPrint() {
+  const v = S.current ? S.current.notes || '' : '';
+  $('notesPrint').textContent = v;
+  document.querySelector('.notes-panel').classList.toggle('is-empty', !v.trim());
+}
+
+/* Ctrl+P (ou o menu do navegador) também imprime certo: todas as linhas da
+   tabela e gráficos na largura do papel. */
+export function initPrintHooks() {
+  const relayout = w => { if (!S.current) return; if (isSampling()) samplingUI.relayout(w); else { statsUI.relayout(w); balanceUI.relayout(w); } };
+  window.addEventListener('beforeprint', () => {
+    if (!S.current || document.body.classList.contains('print-a3')) return;
+    $('printTitle').textContent = S.current.name;
+    $('printDate').textContent = 'Relatório gerado em ' + new Date().toLocaleString('pt-BR');
+    syncNotesPrint();
+    records.prepareForPrint(true);
+    relayout(720);
+  });
+  window.addEventListener('afterprint', () => {
+    if (!S.current || document.body.classList.contains('print-a3')) return;
+    records.prepareForPrint(false);
+    relayout();
+  });
+}
+
 export function printStudy() {
   if (!S.current) return;
   flush();
   showTab('crono');
-  $('printTitle').textContent = S.current.name;
-  $('printDate').textContent = 'Relatório gerado em ' + new Date().toLocaleString('pt-BR');
-  records.prepareForPrint(true);
-  const relayout = w => { if (isSampling()) samplingUI.relayout(w); else { statsUI.relayout(w); balanceUI.relayout(w); } };
-  relayout(720);
-  setTimeout(() => { window.print(); relayout(); records.prepareForPrint(false); }, 50);
+  // o preparo (tabela completa, gráficos na largura do papel) fica no "beforeprint"
+  setTimeout(() => window.print(), 50);
 }
 
 export function printA3() {

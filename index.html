@@ -61,10 +61,14 @@
 <!-- ===================== Verificação em duas etapas (login) ===================== -->
 <div id="mfaOverlay" class="auth-overlay" hidden>
   <form class="login" id="mfaForm" aria-labelledby="mfaTitle">
+    <div class="login-brand">
+      <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect x="226" y="70" width="60" height="44" rx="12"/><rect x="352" y="120" width="44" height="34" rx="10" transform="rotate(45 374 137)"/><circle cx="256" cy="286" r="150" fill="none" stroke-width="40"/><path d="M256 286 L256 176" stroke-width="34" stroke-linecap="round"/><circle cx="256" cy="286" r="24"/></svg>
+      <span class="brand-word">CronoAnálise</span>
+    </div>
     <h1 class="login-title" id="mfaTitle">Verificação em duas etapas</h1>
     <p class="login-hint">Digite o código de 6 dígitos do seu aplicativo autenticador (Microsoft Authenticator, Google Authenticator…).</p>
     <label class="login-label" for="mfaCode">Código</label>
-    <div class="login-input"><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <div class="login-input"><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
     <div id="mfaError" class="auth-error" role="alert"></div>
     <button type="submit" class="login-submit">Verificar</button>
     <p class="login-links"><button type="button" class="link-plain" data-action="sign-out"><span class="u">Cancelar e sair</span></button></p>
@@ -86,24 +90,28 @@
     <span id="userEmail" class="user-email"></span>
     <button type="button" class="menu-btn" id="menuBtn" data-action="toggle-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menuDropdown" title="Menu">☰</button>
     <div class="menu-dropdown" id="menuDropdown">
+      <div class="menu-sep view-editor-only" aria-hidden="true">Estudo</div>
       <button type="button" class="view-editor-only" data-action="back-dashboard">← Voltar ao Dashboard</button>
       <button type="button" class="view-editor-only" id="btnField" data-action="toggle-field">Modo Campo</button>
       <button type="button" class="view-editor-only" data-action="manual-save">Salvar</button>
-      <button type="button" data-action="new-study">Novo Estudo</button>
-      <button type="button" data-action="new-sampling">Nova Amostragem do Trabalho</button>
-      <button type="button" class="view-editor-only" data-action="export-xlsx">Exportar Excel (.xlsx)</button>
-      <button type="button" class="view-editor-only" data-action="export-csv">Exportar CSV</button>
-      <button type="button" class="view-editor-only" data-action="share-file">📤 Enviar arquivo (Teams, e-mail…)</button>
-      <button type="button" class="view-editor-only" data-action="export-onedrive">☁ Salvar no OneDrive</button>
-      <button type="button" class="view-editor-only" data-action="print">Relatório / PDF</button>
-      <button type="button" class="view-editor-only" data-action="print-a3">🧾 Relatório A3</button>
       <button type="button" class="view-editor-only" data-action="open-photos">📷 Fotos do estudo</button>
       <button type="button" class="view-editor-only" id="btnShare" data-action="share" hidden>👥 Compartilhar</button>
+      <div class="menu-sep menu-sep-novo" aria-hidden="true">Novo</div>
+      <button type="button" data-action="new-study">➕ Novo Estudo</button>
+      <button type="button" data-action="new-sampling">🎲 Nova Amostragem do Trabalho</button>
+      <div class="menu-sep view-editor-only" aria-hidden="true">Exportar e relatórios</div>
+      <button type="button" class="view-editor-only" data-action="export-xlsx">📗 Exportar Excel (.xlsx)</button>
+      <button type="button" class="view-editor-only" data-action="export-csv">📄 Exportar CSV</button>
+      <button type="button" class="view-editor-only" data-action="share-file">📤 Enviar arquivo (Teams, e-mail…)</button>
+      <button type="button" class="view-editor-only" data-action="export-onedrive">☁ Salvar no OneDrive</button>
+      <button type="button" class="view-editor-only" data-action="print">🖨 Relatório / PDF</button>
+      <button type="button" class="view-editor-only" data-action="print-a3">🧾 Relatório A3</button>
+      <div class="menu-sep" aria-hidden="true">Equipe e conta</div>
       <button type="button" data-action="open-teams">🏢 Times</button>
       <button type="button" id="btnTheme" data-action="toggle-theme">🌙 Tema Escuro</button>
       <button type="button" data-action="open-settings">⚙ Configurações</button>
       <button type="button" id="btnAdmin" data-action="open-admin" hidden>👤 Administração</button>
-      <button type="button" data-action="sign-out">Sair</button>
+      <button type="button" data-action="sign-out">↪ Sair</button>
     </div>
   </div>
 </header>
@@ -282,7 +290,7 @@
     <div id="planList" class="plan-list"></div>
   </section>
 
-  <section class="panel" data-kind="sampling" data-field-hide>
+  <section class="panel sampling-cats-panel" data-kind="sampling" data-field-hide>
     <h2>Categorias</h2>
     <form id="catForm" class="stage-form" data-edit-only>
       <input id="catName" placeholder="Nova categoria (ex.: Aguardando empilhadeira)" aria-label="Nome da categoria" autocomplete="off">
@@ -314,6 +322,7 @@
     <h2>Observações / Oportunidades Observadas</h2>
     <p class="hint">Anote pontos de atenção, desvios, ideias de melhoria ou qualquer observação relevante sobre este estudo.</p>
     <textarea id="notes" data-field="notes" class="notes-field" aria-label="Observações e oportunidades" placeholder="Ex.: Etapa de separação apresentou espera recorrente por falta de material na posição 3..."></textarea>
+    <div id="notesPrint" class="notes-print"></div>
   </section>
 
   </div><!-- /editorMain -->

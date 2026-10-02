@@ -12,7 +12,8 @@ export function initCompare() {
 
 export function openCompare(preselectId) {
   // comparação de cronoanálises (a amostragem tem os próprios indicadores)
-  const list = storage.listStudies().filter(s => s.kind !== 'sampling').sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  // mais recentes primeiro (pela criação): o último estudo criado é o "depois"
+  const list = storage.listStudies().filter(s => s.kind !== 'sampling').sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   if (list.length < 2) { showToast('Crie pelo menos dois estudos de cronoanálise para comparar'); return; }
   const opts = list.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>').join('');
   $('compareA').innerHTML = opts;

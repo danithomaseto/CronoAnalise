@@ -306,7 +306,7 @@ function renderCategories() {
       cats.map(c => '<tr data-id="' + escapeHtml(c.id) + '">' +
         '<td><input data-cat-name value="' + escapeHtml(c.name) + '" aria-label="Nome da categoria"' + ro + '></td>' +
         '<td><input type="checkbox" data-cat-prod aria-label="Categoria produtiva"' + (c.productive ? ' checked' : '') + ro + '></td>' +
-        '<td class="no-print">' + (S.readonly ? '' : '<button type="button" class="danger" data-cat-remove>Remover</button>') + '</td></tr>').join('') +
+        '<td class="no-print">' + (S.readonly ? '' : '<button type="button" class="danger icon-btn" data-cat-remove title="Remover categoria">✕<span class="rm-label">Remover</span></button>') + '</td></tr>').join('') +
       '</tbody></table>'
     : '';
 }

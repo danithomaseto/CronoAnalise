@@ -129,7 +129,7 @@ export async function openGallery(study, recordId) {
     '<figcaption><span><b>' + escapeHtml(r.stageName) + '</b> · ciclo ' + r.cycle + ' · ' + escapeHtml(fmtTimeOfDay(p.ts || r.ts)) + '</span>' +
     (r.note ? '<span>📝 ' + escapeHtml(r.note) + '</span>' : '') +
     '<span class="pending" data-pending hidden>aguardando envio</span>' +
-    '<span class="row-actions"><a data-open target="_blank" rel="noopener" hidden>Abrir</a>' +
+    '<span class="row-actions"><a class="btn-link" data-open target="_blank" rel="noopener" hidden>Abrir ↗</a>' +
     (ro ? '' : '<button type="button" class="danger" data-record="' + escapeHtml(r.id) + '" data-photo-remove="' + escapeHtml(p.id) + '" data-path="' + escapeHtml(p.path) + '">Remover</button>') +
     '</span></figcaption></figure>'
   ).join('');

@@ -111,7 +111,7 @@ function rowHtml(r, stats) {
       (r.interruption ? '' : '<button type="button" data-action="toggle-exclude" title="' + (r.excluded ? 'Voltar a considerar nos cálculos' : 'Ignorar nos cálculos (sem excluir)') + '">' +
         (r.excluded ? 'Considerar' : 'Ignorar') + '</button>') +
       '<button type="button" data-action="record-photo" title="Fotografar este registro" aria-label="Foto">📷</button>' + photos +
-      '<button type="button" class="danger" data-action="delete-record">Excluir</button>' +
+      '<button type="button" class="danger icon-btn" data-action="delete-record" title="Excluir registro" aria-label="Excluir registro">✕</button>' +
     '</div>';
   return '<tr data-id="' + escapeHtml(r.id) + '"' + (cls ? ' class="' + cls + '"' : '') + '>' +
     '<td>' + r.cycle + '</td>' +

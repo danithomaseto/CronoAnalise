@@ -54,14 +54,15 @@ export function render(stats) {
   if (b.unitsPerHour > 0) kpis += kpi('Capacidade da linha', toBR(b.unitsPerHour, 1) + ' un/h', 'limitada pelo gargalo');
 
   const rows = b.stations.map(st =>
-    '<tr><td>' + escapeHtml(st.name) + '</td><td>' + st.items.map(it => escapeHtml(it.name)).join(', ') + '</td>' +
+    '<tr><td>' + escapeHtml(st.name) + '</td><td class="wrap">' + st.items.map(it => escapeHtml(it.name)).join(', ') + '</td>' +
     '<td>' + toBR(st.load) + '</td>' +
     (b.taktCycle > 0 ? '<td>' + toBR(st.load / b.taktCycle * 100, 0) + '%' + (st.load > b.taktCycle + 1e-9 ? ' <span class="ico bad">⚠</span>' : '') + '</td>' : '') +
     '</tr>'
   ).join('');
 
   const maxK = Math.max(1, b.items.length);
-  if (!chosenK || chosenK > maxK) chosenK = Math.min(maxK, b.minStations || Math.max(1, b.stations.length));
+  // padrão: o número de postos de hoje (ou o mínimo pelo takt, se ainda não há postos)
+  if (!chosenK || chosenK > maxK) chosenK = Math.min(maxK, b.hasStations ? b.stations.length : Math.max(2, b.minStations || 2));
   const opts = Array.from({ length: maxK }, (_, i) => i + 1)
     .map(k => '<option value="' + k + '"' + (k === chosenK ? ' selected' : '') + '>' + k + ' posto' + (k > 1 ? 's' : '') + '</option>').join('');
 
@@ -74,7 +75,7 @@ export function render(stats) {
       (b.taktCycle > 0 ? 'linha: takt do ciclo' : 'segundos por ciclo') + '</span>' +
       legendHTML(typesPresent(b.items.map(it => ({ [it.type]: it.load })))) + '</figcaption><div id="balanceChart"></div></figure>' +
     '<div class="balance-suggest">' +
-      '<div class="row-line"><b>Sugestão de balanceamento</b> com <select id="balanceK" aria-label="Número de postos da sugestão">' + opts + '</select></div>' +
+      '<div class="row-line"><b>Sugestão de balanceamento</b><label class="inline-label">Postos <select id="balanceK" aria-label="Número de postos da sugestão">' + opts + '</select></label></div>' +
       '<div id="balanceSuggestion"></div>' +
     '</div>';
   renderChart();
@@ -96,7 +97,7 @@ function renderSuggestion() {
   const b = last.balance;
   el.innerHTML =
     '<div class="table-wrap"><table class="summary-table"><thead><tr><th>Posto</th><th>Etapas</th><th>Carga (s/ciclo)</th></tr></thead><tbody>' +
-    sug.stations.map(st => '<tr><td>' + escapeHtml(st.name) + '</td><td>' + st.items.map(it => escapeHtml(it.name)).join(', ') + '</td><td>' + toBR(st.load) +
+    sug.stations.map(st => '<tr><td>' + escapeHtml(st.name) + '</td><td class="wrap">' + st.items.map(it => escapeHtml(it.name)).join(', ') + '</td><td>' + toBR(st.load) +
       (b.taktCycle > 0 && st.load > b.taktCycle + 1e-9 ? ' <span class="ico bad">⚠</span>' : '') + '</td></tr>').join('') +
     '</tbody></table></div>' +
     '<p class="hint" style="margin:0">Gargalo: ' + toBR(sug.maxLoad, 1) + ' s · eficiência ' + toBR(sug.efficiency, 0) + '%' +
