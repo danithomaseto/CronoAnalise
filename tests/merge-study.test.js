@@ -119,7 +119,7 @@ function randomEdits(study, rand, clock) {
   const n = 1 + Math.floor(rand() * 6);
   for (let i = 0; i < n; i++) {
     const t = T(clock.n++);
-    const op = Math.floor(rand() * 7);
+    const op = Math.floor(rand() * 11);
     if (op === 0) { s.records.push(rec('r' + clock.n + '_' + Math.floor(rand() * 1e6), t)); }
     else if (op === 1 && s.records.length) { const r = s.records[Math.floor(rand() * s.records.length)]; r.time = Math.round(rand() * 100) / 10; r.u = t; }
     else if (op === 2 && s.records.length) { const k = Math.floor(rand() * s.records.length); const [r] = s.records.splice(k, 1); s.deletedRecords = { ...(s.deletedRecords || {}), [r.id]: t }; }
@@ -127,6 +127,10 @@ function randomEdits(study, rand, clock) {
     else if (op === 4) { s.stages.push({ id: 'st' + clock.n, name: 'E' + clock.n, type: 'VA', u: t, pos: Math.max(-1, ...s.stages.map(x => x.pos)) + 1 }); }
     else if (op === 5 && s.stages.length > 1) { const i = Math.floor(rand() * (s.stages.length - 1)); swapPos(s, i, i + 1, t); }
     else if (op === 6) { s.currentCycle = 1 + Math.floor(rand() * 9); s.fieldTs = { ...(s.fieldTs || {}), currentCycle: t }; }
+    else if (op === 7 && s.stages.length) { const st = s.stages[Math.floor(rand() * s.stages.length)]; st.station = 'P' + Math.floor(rand() * 3); st.u = t; }
+    else if (op === 8) { s.observations = [...(s.observations || []), { id: 'o' + clock.n + '_' + Math.floor(rand() * 1e6), ts: t, cat: 'c1', catName: 'C', productive: rand() < 0.5 }]; }
+    else if (op === 9 && s.observations && s.observations.length) { const k = Math.floor(rand() * s.observations.length); const [o] = s.observations.splice(k, 1); s.deletedObservations = { ...(s.deletedObservations || {}), [o.id]: t }; }
+    else if (op === 10) { s.a3 = { problem: 'p' + clock.n }; s.fieldTs = { ...(s.fieldTs || {}), a3: t }; }
     s.updatedAt = t;
   }
   return s;

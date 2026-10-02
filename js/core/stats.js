@@ -1,6 +1,8 @@
 /* Indicadores do estudo — sem DOM, testáveis no Node. */
 
 import { TYPES } from '../config.js';
+import { whRating } from './westinghouse.js';
+import { cycleTrend } from './trend.js';
 
 const Z = { 90: 1.645, 95: 1.96, 99: 2.576 };
 
@@ -9,7 +11,8 @@ export function zFor(confidence) {
 }
 
 export function hasStdParams(study) {
-  return ratingOf(study) !== 100 || allowanceOf(study) !== 0;
+  return ratingOf(study) !== 100 || allowanceOf(study) !== 0 ||
+    (study && study.stages || []).some(st => whRating(st.wh) !== null);
 }
 
 export function ratingOf(study) {
@@ -64,19 +67,30 @@ export function computeStats(study, prefs = {}) {
 
   const rating = ratingOf(study);
   const allowance = allowanceOf(study);
-  const factor = (rating / 100) * (1 + allowance / 100);
-  const stdCycle = avgCycle * factor;
+  // Ritmo por etapa (Westinghouse) substitui o ritmo do estudo naquela etapa
+  const stageById = new Map((study.stages || []).map(s => [s.id, s]));
+  const stageRating = id => {
+    const r = whRating((stageById.get(id) || {}).wh);
+    return r === null ? rating : r;
+  };
+  const anyStageRating = (study.stages || []).some(s => whRating(s.wh) !== null);
+  const hasStd = rating !== 100 || allowance !== 0 || anyStageRating;
 
   // Resumo por etapa (agrupado por nome + tipo, como na versão original)
   const groups = new Map();
   active.forEach(r => {
     const key = r.stageName + '||' + r.type;
-    if (!groups.has(key)) groups.set(key, { name: r.stageName, type: r.type, stageId: r.stageId, times: [], qty: 0, ids: [] });
+    if (!groups.has(key)) groups.set(key, { name: r.stageName, type: r.type, stageId: r.stageId, times: [], qty: 0, ids: [], stdTime: 0 });
     const g = groups.get(key);
     g.times.push(Number(r.time) || 0);
     g.qty += Number(r.qty) || 0;
     g.ids.push(r.id);
+    // tempo padrão de cada registro, pelo ritmo da etapa a que ele pertence
+    g.stdTime += (Number(r.time) || 0) * stageRating(r.stageId) / 100 * (1 + allowance / 100);
   });
+  let stdTotal = 0;
+  groups.forEach(g => { stdTotal += g.stdTime; });
+  const stdCycle = cycleCount ? stdTotal / cycleCount : 0;
 
   const outliers = new Set();
   const summary = [];
@@ -87,7 +101,8 @@ export function computeStats(study, prefs = {}) {
     const sd = sampleStdDev(g.times, avg);
     const cv = avg > 0 ? sd / avg * 100 : 0;
     const nRequired = count >= 2 && avg > 0 ? Math.ceil(Math.pow((z * sd) / (e * avg), 2)) : null;
-    const normal = avg * rating / 100;
+    const gRating = stageRating(g.stageId);
+    const normal = avg * gRating / 100;
     if (count >= 5 && sd > 0) {
       g.times.forEach((t, i) => { if (Math.abs(t - avg) > 2 * sd) outliers.add(g.ids[i]); });
     }
@@ -106,8 +121,11 @@ export function computeStats(study, prefs = {}) {
       enough: nRequired !== null && count >= nRequired,
       qty: g.qty,
       productivity: g.qty > 0 && sum > 0 ? g.qty / (sum / 3600) : 0,
+      rating: gRating,
+      stageRating: whRating((stageById.get(g.stageId) || {}).wh) !== null,
       normal,
-      standard: normal * (1 + allowance / 100)
+      standard: normal * (1 + allowance / 100),
+      stdTotal: g.stdTime
     });
   });
 
@@ -141,9 +159,9 @@ export function computeStats(study, prefs = {}) {
   const availableMin = Number(study.availableMin) || 0;
   const takt = demand > 0 && availableMin > 0 ? availableMin * 60 / demand : 0;
   const perUnit = qtyTotal > 0 ? total / qtyTotal : 0;
-  const perUnitStd = perUnit * factor;
+  const perUnitStd = qtyTotal > 0 ? stdTotal / qtyTotal : 0;
   const unitsPerCycle = cycleCount ? qtyTotal / cycleCount : 0;
-  const perUnitRef = rating !== 100 || allowance !== 0 ? perUnitStd : perUnit;
+  const perUnitRef = hasStd ? perUnitStd : perUnit;
 
   return {
     total,
@@ -172,7 +190,10 @@ export function computeStats(study, prefs = {}) {
     rating,
     allowance,
     stdCycle,
-    hasStdParams: rating !== 100 || allowance !== 0,
+    stdTotal,
+    hasStdParams: hasStd,
+    anyStageRating,
+    trend: cycleTrend(cycleTotals),
     summary,
     outliers,
     excludedCount: records.filter(r => r.excluded && !r.interruption).length,

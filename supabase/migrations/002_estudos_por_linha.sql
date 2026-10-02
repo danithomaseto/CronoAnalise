@@ -86,12 +86,30 @@ create table if not exists public.crono_study_version (
 );
 create index if not exists crono_study_version_idx on public.crono_study_version (study_id, created_at desc);
 
--- Funções auxiliares (security definer evitam recursão entre as policies)
+-- Funções auxiliares (security definer evitam recursão entre as policies).
+-- crono_shared_role já considera os times da migração 003, se existirem: rodar esta
+-- migração de novo depois da 003 não desfaz nada.
 create or replace function public.crono_shared_role(p_study_id text)
-returns text language sql stable security definer set search_path = public as $$
-  select role from public.crono_study_share
-  where study_id = p_study_id and email = lower(coalesce(auth.jwt() ->> 'email', ''));
-$$;
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  me text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  r text;
+  t text;
+begin
+  select s.role into r from public.crono_study_share s where s.study_id = p_study_id and s.email = me;
+  if r = 'editor' then return r; end if;
+  -- times (migração 003): o papel mais forte entre os times de que a pessoa participa
+  if to_regclass('public.crono_study_team_share') is not null then
+    select case when bool_or(ts.role = 'editor') then 'editor' when count(*) > 0 then 'viewer' end into t
+    from public.crono_study_team_share ts
+    where ts.study_id = p_study_id
+      and (exists (select 1 from public.crono_team_member m where m.team_id = ts.team_id and m.email = me)
+           or exists (select 1 from public.crono_team t2 where t2.id = ts.team_id and t2.owner_id = auth.uid()));
+    if t = 'editor' then return t; end if;
+    r := coalesce(r, t);
+  end if;
+  return r;
+end $$;
 
 create or replace function public.crono_owns_study(p_study_id text)
 returns boolean language sql stable security definer set search_path = public as $$
@@ -252,12 +270,20 @@ create or replace function public.crono_delete_account()
 returns void language plpgsql security definer set search_path = public, auth as $$
 declare
   uid uuid := auth.uid();
+  me text := lower(coalesce(auth.jwt() ->> 'email', ''));
 begin
   if uid is null then
     raise exception 'Não autenticado' using errcode = '42501';
   end if;
   delete from public.crono_study where owner_id = uid;          -- leva compartilhamentos e versões (cascade)
-  delete from public.crono_study_share where email = lower(coalesce(auth.jwt() ->> 'email', ''));
+  delete from public.crono_study_share where email = me;
+  if to_regclass('public.crono_team') is not null then
+    delete from public.crono_team where owner_id = uid;         -- leva membros e compartilhamentos do time
+    delete from public.crono_team_member where email = me;
+  end if;
+  if to_regclass('public.crono_client_error') is not null then
+    delete from public.crono_client_error where user_id = uid;
+  end if;
   delete from public.crono_studies where user_id = uid;
   delete from public.crono_user_activity where user_id = uid;
   delete from auth.users where id = uid;

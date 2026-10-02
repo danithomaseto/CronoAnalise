@@ -54,9 +54,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Instalar Playwright (só para o teste, não vai para o deploy)
-        run: npm i --no-save playwright && npx playwright install --with-deps chromium
-      - name: Testes de ponta a ponta (Supabase simulado)
+      - name: Instalar Playwright e axe-core (só para o teste, não vão para o deploy)
+        run: npm i --no-save playwright@1.56.1 axe-core && npx playwright install --with-deps chromium
+      - name: Testes de ponta a ponta (Supabase simulado) + acessibilidade (axe)
         run: npm run test:e2e
       - name: Screenshots
         if: always()
@@ -64,6 +64,25 @@ jobs:
         with:
           name: e2e-screenshots
           path: tests/e2e/out/
+          if-no-files-found: ignore
+
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright (versão fixa) e comparador de imagens
+        run: npm i --no-save playwright@1.56.1 pixelmatch pngjs && npx playwright install --with-deps chromium
+      - name: Regressão visual (screenshots × referências)
+        run: npm run test:visual
+      - name: Screenshots e diferenças
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff
+          path: tests/visual/out/
           if-no-files-found: ignore
 
   staging:

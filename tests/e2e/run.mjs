@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from './server.mjs';
-import { createFakeSupabase, SB_URL } from './fake-supabase.mjs';
+import zlib from 'node:zlib';
+import { createRequire } from 'node:module';
+import { createFakeSupabase, SB_URL, totp } from './fake-supabase.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -28,7 +30,7 @@ const browser = await chromium.launch();
 
 async function newCtx(fake, { sw = 'block' } = {}) {
   const ctx = await browser.newContext({ serviceWorkers: sw, acceptDownloads: true, viewport: { width: 1200, height: 900 } });
-  await ctx.route(SB_URL + '/**', r => fake.handle(r));
+  await fake.attach(ctx);
   return ctx;
 }
 
@@ -40,7 +42,13 @@ function watch(page, name) {
     if (m.type() === 'error' && !/Failed to load resource/.test(t)) errors.push('console: ' + t);
     if (/Content Security Policy|Refused to/.test(t)) errors.push('CSP: ' + t);
   });
-  page.on('dialog', d => { errors.push('dialog inesperado: ' + d.message()); d.dismiss(); });
+  page._dialogs = [];
+  page.on('dialog', d => {
+    // diálogos esperados (acceptNextDialog) são aceitos em ordem; os outros viram erro
+    if (page._dialogs.length) { d.accept(page._dialogs.shift() ?? undefined); return; }
+    errors.push('dialog inesperado: ' + d.message());
+    d.dismiss();
+  });
   page._errors = errors;
   page._name = name;
   return errors;
@@ -56,10 +64,8 @@ async function login(page, email, pass) {
   await page.waitForFunction(() => !document.body.classList.contains('booting'));
 }
 
-async function acceptNextDialog(page) {
-  page.removeAllListeners('dialog');
-  page.once('dialog', d => d.accept());
-  setTimeout(() => page.on('dialog', d => { page._errors.push('dialog inesperado: ' + d.message()); d.dismiss(); }), 50);
+async function acceptNextDialog(page, text = null) {
+  page._dialogs.push(text);
 }
 
 const studyData = async page => page.evaluate(async () => {
@@ -651,7 +657,7 @@ T('layout mobile e Modo Campo (screenshots)', async () => {
   const fake = createFakeSupabase();
   fake.addUser('ana@x.com', 'segredo1');
   const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-  await ctx.route(SB_URL + '/**', r => fake.handle(r));
+  await fake.attach(ctx);
   const page = await ctx.newPage();
   const errors = watch(page, 'mobile');
   await login(page, 'ana@x.com', 'segredo1');
@@ -797,12 +803,9 @@ T('etapas reordenáveis, modelo, interrupção, observações, gráficos, takt, 
       await sleep(150);
       await page.locator('body').click({ position: { x: 5, y: 300 } });
       await page.keyboard.press('0'); // atalho de interrupção
-      page.once('dialog', d => d.accept('falta de caixa'));
-      page.removeAllListeners('dialog');
-      page.once('dialog', d => d.accept('falta de caixa'));
+      acceptNextDialog(page, 'falta de caixa');
       await page.click('#btnNote');
       await sleep(100);
-      page.on('dialog', d => { errors.push('dialog inesperado: ' + d.message()); d.dismiss(); });
     }
     await page.click('[data-action=new-cycle]');
   }
@@ -832,12 +835,12 @@ T('etapas reordenáveis, modelo, interrupção, observações, gráficos, takt, 
   check(ymarks.length === 12, 'Yamazumi: 3 segmentos × 4 ciclos (' + ymarks.length + ') ' + (ymarks.length === 12 ? '' : JSON.stringify(ymarks)));
   check((await page.locator('#charts .chart-card').nth(0).textContent()).includes('Takt do ciclo'), 'linha de takt no Yamazumi');
   await page.locator('#charts .chart-card').nth(1).locator('.mark').first().hover();
-  check(!(await page.isHidden('#chartTip')) && (await page.textContent('#chartTip')).includes('% do tempo'), 'tooltip no Pareto');
+  check(!(await page.isHidden('#stats .chart-tip')) && (await page.textContent('#stats .chart-tip')).includes('% do tempo'), 'tooltip no Pareto');
   await page.locator('#charts .chart-card').nth(2).locator('.hit').nth(1).hover();
-  check((await page.textContent('#chartTip')).startsWith('Ciclo 2:'), 'tooltip no tempo de ciclo');
+  check((await page.textContent('#stats .chart-tip')).startsWith('Ciclo 2:'), 'tooltip no tempo de ciclo');
   check(await page.locator('#charts .crosshair[visibility=visible]').count() === 1, 'crosshair acompanha o ponteiro');
   await page.locator('#charts .chart-card').nth(0).locator('.mark').first().focus();
-  check(!(await page.isHidden('#chartTip')), 'tooltip também pelo teclado (foco)');
+  check(!(await page.isHidden('#stats .chart-tip')), 'tooltip também pelo teclado (foco)');
   await page.screenshot({ path: OUT + 'charts.png', fullPage: true });
 
   // Excel
@@ -1136,6 +1139,694 @@ T('admin com estatísticas, IndexedDB e excluir conta', async () => {
   check(left.length === 0, 'dados apagados deste aparelho');
   check(eA.length === 0 && eD.length === 0, 'sem erros: ' + [...eA, ...eD].join(' || '));
   await ctxA.close(); await ctxD.close();
+});
+
+/* ================================================================ */
+/* Funções da versão Beta 11                                         */
+/* ================================================================ */
+
+/* PNG válido gerado na hora (para simular a câmera). */
+function makePng(w, h, rgb = [212, 5, 17]) {
+  const crc = buf => { let c = 0xffffffff; for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; } return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = rgb[0]; raw[o + 1] = (x * 4) & 255; raw[o + 2] = rgb[2]; }
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+async function waitFor(fn, ms = 6000, step = 100) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (await fn()) return true; await sleep(step); }
+  return false;
+}
+
+async function menu(page, action) {
+  await page.click('[data-action=toggle-menu]');
+  await page.click('#menuDropdown [data-action=' + action + ']');
+}
+
+async function markCycles(page, n, stages, delay = () => 80) {
+  if (!(await page.isDisabled('#btnPause'))) { /* já rodando */ } else await page.click('#btnStart');
+  for (let c = 0; c < n; c++) {
+    for (let i = 1; i <= stages; i++) { await sleep(delay(c, i)); await page.click(`.stage-wrap:nth-child(${i}) .stage`); }
+    await page.click('[data-action=new-cycle]');
+  }
+}
+
+async function shareWith(page, email, role) {
+  await menu(page, 'share');
+  await page.fill('#shareEmail', email);
+  await page.selectOption('#shareRole', role);
+  await page.click('#shareForm button[type=submit]');
+  await page.waitForSelector('#shareList table');
+  await page.keyboard.press('Escape');
+}
+
+const xlsxHas = (file, text) => fs.readFileSync(file).toString('latin1').includes(text);
+
+T('login no visual da empresa: título, olho da senha e entrar com a conta Microsoft', async () => {
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'login');
+  await page.goto(BASE);
+  await page.waitForSelector('#authEmail', { state: 'visible' });
+  check((await page.textContent('#loginTitle')) === 'CronoAnalise System', 'título "CronoAnalise System"');
+  await page.waitForTimeout(300);
+  check(await page.locator('#btnMicrosoft').isHidden() && await page.locator('#msSep').isHidden(), 'provedor Microsoft desligado no Supabase: botão escondido');
+  check(await page.$eval('#btnOneDrive', b => b.hidden), 'sem o provedor, "Salvar no OneDrive" também fica escondido');
+  check((await page.textContent('#loginCredit')).includes('Daniel Thomaseto'), 'assinatura do autor na tela de login');
+  check((await page.$eval('.login-submit', b => getComputedStyle(b).backgroundColor)) === 'rgb(255, 204, 0)', 'botão Entrar no amarelo DHL');
+  check((await page.$eval('.login-brand', b => getComputedStyle(b).backgroundColor)) === 'rgb(255, 204, 0)', 'faixa da marca amarela');
+  await page.screenshot({ path: OUT + 'login-dhl.png' });
+  await page.fill('#authPass', 'abc123');
+  await page.click('#btnShowPass');
+  check((await page.getAttribute('#authPass', 'type')) === 'text' && (await page.getAttribute('#btnShowPass', 'aria-pressed')) === 'true', 'olho mostra a senha');
+  await page.click('#btnShowPass');
+  check((await page.getAttribute('#authPass', 'type')) === 'password', 'olho esconde a senha de novo');
+
+  fake.setAzure(true);
+  await page.reload();
+  await page.waitForSelector('#btnMicrosoft', { state: 'visible' });
+  check(true, 'provedor ativado no Supabase: botão aparece sozinho (sem deploy)');
+  check((await page.textContent('#btnMicrosoft')).includes('Acesso com e-mail DHL'), 'botão "Acesso com e-mail DHL"');
+  check(await page.locator('#btnMicrosoft .ms-logo rect').count() === 4, 'logo da Microsoft (4 quadrados)');
+  await page.click('#btnMicrosoft');
+  await page.waitForSelector('body.authed', { timeout: 10000 });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'));
+  check((await page.textContent('#userEmail')) === 'ana.ms@dhl.com', 'entrou com a conta Microsoft');
+  const last = fake.authorizeLog[fake.authorizeLog.length - 1];
+  check(last.provider === 'azure' && /email/.test(last.scopes) && !/Files/.test(last.scopes), 'login comum pede só o e-mail (OneDrive só quando usar)');
+  check(await page.evaluate(() => !!sessionStorage.getItem('cronoanalise:graphToken')), 'token do Microsoft Graph guardado só nesta aba');
+  check(!(await page.$eval('#btnOneDrive', b => b.hidden)), 'com o provedor ativo, "Salvar no OneDrive" aparece no menu');
+  check(!page.url().includes('access_token'), 'tokens removidos da barra de endereço');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('verificação em duas etapas (TOTP): ativar, entrar com código e desativar', async () => {
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'mfa');
+  await login(page, 'ana@x.com', 'segredo1');
+  await menu(page, 'open-settings');
+  await page.waitForFunction(() => document.getElementById('mfaStatus').textContent === 'desativada');
+  await page.click('#btnMfaToggle');
+  await page.waitForSelector('#mfaEnrollModal:not([hidden])');
+  const secret = (await page.textContent('#mfaSecret')).trim();
+  check(/^[A-Z2-7]{16,}$/.test(secret) && (await page.getAttribute('#mfaQr', 'src')).startsWith('data:image/svg+xml'), 'QR code e chave exibidos');
+  await page.fill('#mfaEnrollCode', '123456');
+  await page.click('#mfaEnrollForm button[type=submit]');
+  await page.waitForFunction(() => document.getElementById('mfaEnrollError').textContent.length > 0);
+  check((await page.textContent('#mfaEnrollError')).includes('Código inválido'), 'código errado é recusado');
+  await page.fill('#mfaEnrollCode', totp(secret));
+  await page.click('#mfaEnrollForm button[type=submit]');
+  await page.waitForSelector('#mfaEnrollModal', { state: 'hidden' });
+  check(fake.factorsOf('ana@x.com').some(f => f.status === 'verified'), 'fator verificado no servidor');
+
+  await menu(page, 'sign-out');
+  await page.waitForSelector('#authOverlay', { state: 'visible' });
+  await page.fill('#authEmail', 'ana@x.com');
+  await page.fill('#authPass', 'segredo1');
+  await page.click('#authForm button[type=submit]');
+  await page.waitForSelector('#mfaOverlay:not([hidden])');
+  check(!(await page.evaluate(() => document.body.classList.contains('authed'))), 'sem o código, o app não abre');
+  await page.fill('#mfaCode', '000000');
+  await page.click('#mfaForm button[type=submit]');
+  await page.waitForFunction(() => document.getElementById('mfaError').textContent.length > 0);
+  await page.fill('#mfaCode', totp(secret));
+  await page.click('#mfaForm button[type=submit]');
+  await page.waitForSelector('body.authed', { timeout: 10000 });
+  check(await page.isHidden('#mfaOverlay'), 'código certo abre o app');
+  await setupStudy(page, 'Com 2 etapas', [['E1', 'VA']]);
+  await page.click('#btnStart'); await sleep(150); await page.click('.stage');
+  check(await waitFor(() => fake.rows().length === 1), 'sessão verificada (aal2) sincroniza normalmente');
+
+  await menu(page, 'open-settings');
+  await page.waitForFunction(() => document.getElementById('mfaStatus').textContent === 'ativada');
+  await acceptNextDialog(page);
+  await page.click('#btnMfaToggle');
+  check(await waitFor(() => fake.factorsOf('ana@x.com').length === 0), 'verificação em duas etapas desativada');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('saída automática por inatividade (exceto com cronômetro rodando)', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'idle');
+  await login(page, 'ana@x.com', 'segredo1');
+  await menu(page, 'open-settings');
+  await page.selectOption('#prefAutoLogout', '15');
+  await page.keyboard.press('Escape');
+  await setupStudy(page, 'Coleta longa', [['E1', 'VA']]);
+  await page.click('#btnStart');
+  const goIdle = ms => page.evaluate(ago => { localStorage.setItem('cronoanalise:lastActive', String(Date.now() - ago)); document.dispatchEvent(new Event('visibilitychange')); }, ms);
+  await goIdle(3600000);
+  await sleep(600);
+  check(await page.evaluate(() => document.body.classList.contains('authed')), 'com cronômetro rodando, não sai');
+  await page.click('#btnPause');
+  await goIdle(3600000);
+  await page.waitForSelector('#authOverlay', { state: 'visible', timeout: 8000 });
+  check((await page.textContent('#toast')).includes('inatividade'), 'saiu por inatividade e avisou');
+
+  await login(page, 'ana@x.com', 'segredo1');
+  await page.evaluate(() => localStorage.setItem('cronoanalise:lastActive', String(Date.now() - 15 * 60000 - 5000)));
+  await page.waitForSelector('#idleModal:not([hidden])', { timeout: 20000 });
+  check(Number(await page.textContent('#idleCount')) <= 60, 'aviso com contagem regressiva');
+  await page.click('[data-action=idle-stay]');
+  check(await page.isHidden('#idleModal') && await page.evaluate(() => document.body.classList.contains('authed')), '"Continuar conectado" mantém a sessão');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('balanceamento de linha, ritmo Westinghouse por etapa e tendência do ciclo', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'bal');
+  await login(page, 'ana@x.com', 'segredo1');
+  await setupStudy(page, 'Linha balanceada', [['Pegar', 'VA'], ['Montar', 'VA'], ['Conferir', 'NVA'], ['Embalar', 'VA']]);
+  await page.click('#stdParams summary');
+  await page.fill('#demand', '480');
+  await page.fill('#availableMin', '400');
+  for (const [i, st] of [[1, 'P1'], [2, 'P1'], [3, 'P2'], [4, 'P2']]) {
+    await page.click(`.stage-wrap:nth-child(${i}) .stage-edit`);
+    await page.fill('#editStageStation', st);
+    if (i === 2) {
+      await page.click('#whBox summary');
+      await page.selectOption('#whFields [data-wh=skill]', 'C1');
+      await page.selectOption('#whFields [data-wh=effort]', 'C2');
+      check((await page.textContent('#whResult')) === '108%', 'ritmo Westinghouse calculado no modal (C1 + C2 = 108%)');
+    }
+    await page.click('#stageEditForm button[type=submit]');
+  }
+  const t2 = await page.textContent('.stage-wrap:nth-child(2) .stage-type');
+  check(t2.includes('P1') && t2.includes('ritmo 108%'), 'etapa mostra posto e ritmo: ' + t2);
+  await markCycles(page, 6, 4, (c, i) => 50 + (6 - c) * 45 + (i === 2 ? 60 : 0));
+  await sleep(300);
+  const kpis = await page.textContent('#stats .kpi-grid');
+  check(kpis.includes('Tendência do Ciclo') && kpis.includes('▼'), 'tendência de queda (aprendizado) detectada');
+  check((await page.$$eval('#stats .summary-table th', ths => ths.map(t => t.textContent))).includes('Ritmo%'), 'coluna de ritmo no resumo');
+  check(await page.locator('#stats .summary-table td', { hasText: '108 W' }).count() === 1, 'etapa com avaliação Westinghouse marcada com W');
+  const bal = await page.textContent('#balance');
+  check(bal.includes('P1') && bal.includes('P2') && bal.includes('Gargalo') && bal.includes('Mínimo de postos'), 'painel de balanceamento com postos, gargalo e mínimo de postos');
+  check(await page.locator('#balanceChart svg path.mark').count() === 4, 'gráfico de carga por posto (4 etapas empilhadas)');
+  check((await page.textContent('#stats .chart-card:last-child figcaption')).includes('tendência'), 'linha de tendência no gráfico de ciclo');
+  await page.selectOption('#balanceK', '3');
+  await acceptNextDialog(page);
+  await page.click('[data-balance-apply]');
+  const types = await page.$$eval('.stage-wrap .stage-type', els => els.map(e => e.textContent));
+  check(types.some(t => t.includes('Posto 3')), 'sugestão aplicada nas etapas: ' + types.join(' | '));
+  const store = await studyData(page);
+  const st = Object.values(store.studies)[0];
+  check(st.stages.find(x => x.name === 'Montar').wh.skill === 'C1', 'avaliação gravada na etapa');
+  const dl = page.waitForEvent('download');
+  await menu(page, 'export-xlsx');
+  const d = await dl;
+  check(xlsxHas(await d.path(), 'Balanceamento') && xlsxHas(await d.path(), 'Ritmo (%)'), 'Excel com a aba Balanceamento e o ritmo por etapa');
+  await page.screenshot({ path: OUT + 'balanceamento.png', fullPage: true });
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('amostragem do trabalho: categorias, roteiro aleatório, observações, resultados e exportação', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'amostra');
+  await login(page, 'ana@x.com', 'segredo1');
+  await page.click('.dash-hero [data-action=new-sampling]');
+  check(await page.evaluate(() => document.body.classList.contains('kind-sampling')), 'editor no modo amostragem');
+  check((await page.textContent('#tabCrono')) === 'Amostragem' && !(await page.isVisible('.module')), 'aba "Amostragem" e sem cronômetro');
+  check(await page.locator('#samplingCats .stage').count() === 5, '5 categorias padrão');
+  await page.fill('#studyName', 'Picking turno A');
+  await page.fill('#planStart', '00:00');
+  await page.fill('#planEnd', '23:59');
+  await page.fill('#planCount', '40');
+  await page.locator('#planCount').blur();
+  check(await page.locator('#planList .plan-chip').count() === 40, 'roteiro com 40 horários sorteados');
+  for (const i of [1, 1, 1, 2]) { await page.click(`#samplingCats .stage:nth-child(${i})`); await sleep(80); }
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('3');
+  check(await page.locator('#obsTable tr[data-id]').count() === 5, '5 observações (toques e atalho 3)');
+  const res = await page.textContent('#samplingStats');
+  check(res.includes('60,0%') && res.includes('necessárias'), '% produtivo e observações necessárias: ' + res.slice(0, 80));
+  check(await page.locator('#samplingStats svg .whisker').count() > 0, 'gráfico com intervalo de confiança');
+  await page.fill('#catName', 'Retrabalho');
+  await page.click('#catForm button[type=submit]');
+  check(await page.locator('#samplingCats .stage').count() === 6, 'categoria nova');
+  await page.click('#btnSampleUndo');
+  check(await page.locator('#obsTable tr[data-id]').count() === 4, 'desfazer a última observação');
+  await acceptNextDialog(page);
+  await page.click('#catList tr:has(input[value="Ausente"]) [data-cat-remove]');
+  check(await page.locator('#samplingCats .stage').count() === 5, 'categoria removida');
+  let dl = page.waitForEvent('download');
+  await menu(page, 'export-csv');
+  let d = await dl;
+  const csv = fs.readFileSync(await d.path(), 'utf8');
+  check(csv.includes('Amostragem do trabalho') && csv.includes('% produtivo'), 'CSV da amostragem');
+  dl = page.waitForEvent('download');
+  await menu(page, 'export-xlsx');
+  d = await dl;
+  check(xlsxHas(await d.path(), 'Por categoria'), 'Excel da amostragem (aba Por categoria)');
+  await page.screenshot({ path: OUT + 'amostragem.png', fullPage: true });
+  await menu(page, 'back-dashboard');
+  const card = await page.textContent('.study-card');
+  check(card.includes('Amostragem do trabalho') && card.includes('4 observações'), 'card mostra o tipo e as observações');
+  check(await page.isDisabled('#btnCompare'), 'comparação é só para cronoanálises');
+  await page.click('.study-card [data-action=template-study]');
+  check(await page.locator('#samplingCats .stage').count() === 5 && (await page.inputValue('#planCount')) === '40', 'modelo copia categorias e roteiro');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('tempo real: alterações de outro aparelho aparecem sozinhas (selo "ao vivo")', async () => {
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  fake.addUser('bia@x.com', 'segredo2');
+  const ctxA = await newCtx(fake), ctxB = await newCtx(fake);
+  const A = await ctxA.newPage(), B = await ctxB.newPage();
+  const eA = watch(A, 'A'), eB = watch(B, 'B');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Ao vivo', [['E1', 'VA'], ['E2', 'VA']]);
+  await A.click('#btnStart'); await sleep(150); await A.click('.stage-wrap:nth-child(1) .stage');
+  await sleep(1500);
+  await shareWith(A, 'bia@x.com', 'editor');
+  await login(B, 'bia@x.com', 'segredo2');
+  await B.waitForSelector('.study-card');
+  await B.click('.study-card [data-action=open-study]');
+  await B.waitForSelector('#liveBadge:not([hidden])', { timeout: 8000 });
+  check(true, 'selo "ao vivo" no aparelho B');
+  check(fake.subscriberCount() >= 2, 'os dois aparelhos assinaram as mudanças');
+  await sleep(300);
+  await A.click('.stage-wrap:nth-child(2) .stage');
+  const t0 = Date.now();
+  const got = await waitFor(() => B.evaluate(() => document.querySelectorAll('#recordsTable tr[data-id]').length === 2), 6000);
+  check(got, 'B recebeu a marcação de A em ' + (Date.now() - t0) + ' ms (sem esperar a busca periódica)');
+  const id = Object.keys((await studyData(A)).studies)[0];
+  fake.serverUpdate(id, d => ({ ...d, notes: 'escrito no servidor', fieldTs: { ...(d.fieldTs || {}), notes: new Date(Date.now() + 1000).toISOString() } }));
+  check(await waitFor(() => A.evaluate(() => document.getElementById('notes').value === 'escrito no servidor'), 6000), 'A recebeu a alteração do servidor em tempo real');
+  check(eA.length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+T('times: criar, adicionar pessoas, compartilhar com o time, painel do time e sair', async () => {
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  fake.addUser('bia@x.com', 'segredo2');
+  const ctxA = await newCtx(fake), ctxB = await newCtx(fake);
+  const A = await ctxA.newPage(), B = await ctxB.newPage();
+  const eA = watch(A, 'A'), eB = watch(B, 'B');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Estudo do time', [['E1', 'VA']]);
+  await A.click('#btnStart'); await sleep(150); await A.click('.stage');
+  await sleep(1500);
+  await menu(A, 'open-teams');
+  await A.waitForSelector('#teamForm:not([hidden])');
+  await A.fill('#teamName', 'Site Cajamar');
+  await A.click('#teamForm button[type=submit]');
+  await A.waitForSelector('#teamDetail:not([hidden])');
+  await A.fill('#memberEmail', 'BIA@x.com');
+  await A.click('#memberForm button[type=submit]');
+  await A.waitForFunction(() => document.getElementById('membersList').textContent.includes('bia@x.com'));
+  check(fake.db.crono_team.size === 1 && fake.db.crono_team_member.length === 1, 'time criado com a Bia');
+  await A.keyboard.press('Escape');
+  await menu(A, 'share');
+  await A.waitForSelector('#teamShareBox:not([hidden])');
+  await A.selectOption('#teamShareRole', 'viewer');
+  await A.click('#teamShareForm button[type=submit]');
+  await A.waitForFunction(() => document.getElementById('teamShareList').textContent.includes('Site Cajamar'));
+  check(fake.db.crono_study_team_share.length === 1, 'estudo compartilhado com o time');
+  await A.keyboard.press('Escape');
+
+  await login(B, 'bia@x.com', 'segredo2');
+  await B.waitForSelector('.study-card');
+  check((await B.textContent('.study-card')).includes('Somente leitura'), 'integrante vê o estudo do time (somente leitura)');
+  const teamId = [...fake.db.crono_team.keys()][0];
+  await B.waitForSelector(`#dashFilter option[value="team:${teamId}"]`, { state: 'attached', timeout: 8000 });
+  await B.selectOption('#dashFilter', 'team:' + teamId);
+  check((await B.textContent('#dashKpisTitle')).includes('Painel do time — Site Cajamar'), 'painel do time no dashboard');
+  check(await B.locator('.study-card').count() === 1 && (await B.textContent('.study-card')).includes('Site Cajamar'), 'card com o selo do time');
+  await B.click('.study-card [data-action=open-study]');
+  check(await B.evaluate(() => document.body.classList.contains('readonly')), 'editor somente leitura');
+
+  await menu(A, 'share');
+  await A.waitForSelector('#teamShareList select');
+  await A.selectOption('#teamShareList select', 'editor');
+  await sleep(300);
+  await A.keyboard.press('Escape');
+  check(await waitFor(() => B.evaluate(() => !document.body.classList.contains('readonly')), 8000), 'time passou a "editar": B pode editar sem recarregar');
+
+  await menu(B, 'open-teams');
+  await B.waitForSelector('#teamsList [data-team]');
+  await B.click('#teamsList [data-team]');
+  await acceptNextDialog(B);
+  await B.click('#btnTeamLeave');
+  await sleep(500);
+  await B.keyboard.press('Escape');
+  check(await waitFor(() => B.evaluate(() => document.body.classList.contains('view-dashboard') && !document.querySelector('.study-card')), 8000), 'saiu do time: o estudo some do aparelho');
+  check(eA.length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+T('fotos: tirar, enviar ao Storage, ver em outro aparelho, offline e remover', async () => {
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  fake.addUser('bia@x.com', 'segredo2');
+  const ctxA = await newCtx(fake), ctxB = await newCtx(fake);
+  const A = await ctxA.newPage(), B = await ctxB.newPage();
+  const eA = watch(A, 'A'), eB = watch(B, 'B');
+  await login(A, 'ana@x.com', 'segredo1');
+  await setupStudy(A, 'Com fotos', [['Espera de caixa', 'Espera']]);
+  await A.click('#btnStart'); await sleep(150); await A.click('.stage');
+  await sleep(1500);
+  let fc = A.waitForEvent('filechooser');
+  await A.click('#btnPhoto');
+  await (await fc).setFiles({ name: 'foto.png', mimeType: 'image/png', buffer: makePng(320, 240) });
+  await A.waitForSelector('#recordsTable [data-action=record-photos]');
+  check((await A.textContent('#recordsTable [data-action=record-photos]')).includes('1'), 'registro com 1 foto');
+  check(await waitFor(() => fake.db.storage.size === 1), 'foto enviada ao Storage');
+  const [path, file] = [...fake.db.storage.entries()][0];
+  const studyId = Object.keys((await studyData(A)).studies)[0];
+  check(path.startsWith(studyId + '/') && path.endsWith('.jpg') && file.contentType === 'image/jpeg', 'caminho <estudo>/<foto>.jpg em JPEG: ' + path);
+  check(file.bytes[0] === 0xff && file.bytes[1] === 0xd8, 'foto convertida para JPEG no aparelho');
+  await A.click('#recordsTable [data-action=record-photos]');
+  await A.waitForFunction(() => { const i = document.querySelector('#photoGrid img'); return i && i.naturalWidth > 0; });
+  check(true, 'galeria mostra a foto (cópia local)');
+  await A.keyboard.press('Escape');
+
+  await shareWith(A, 'bia@x.com', 'viewer');
+  await login(B, 'bia@x.com', 'segredo2');
+  await B.waitForSelector('.study-card');
+  await B.click('.study-card [data-action=open-study]');
+  await B.click('#recordsTable [data-action=record-photos]');
+  await B.waitForFunction(() => { const i = document.querySelector('#photoGrid img'); return i && i.naturalWidth > 0; }, null, { timeout: 8000 });
+  check((await B.getAttribute('#photoGrid img', 'src')).startsWith(SB_URL + '/storage/v1/object/sign/'), 'outro aparelho vê a foto por link assinado');
+  check(await B.locator('#photoGrid [data-photo-remove]').count() === 0, 'quem só pode ver não remove fotos');
+  await B.keyboard.press('Escape');
+
+  await ctxA.setOffline(true); fake.setOffline(true);
+  fc = A.waitForEvent('filechooser');
+  await A.click('#recordsTable [data-action=record-photo]');
+  await (await fc).setFiles({ name: 'foto2.png', mimeType: 'image/png', buffer: makePng(200, 150, [0, 131, 0]) });
+  await A.waitForFunction(() => (document.querySelector('#recordsTable [data-action=record-photos]') || {}).textContent === '🖼 2');
+  check(fake.db.storage.size === 1, 'offline: a foto fica no aparelho');
+  await A.click('#recordsTable [data-action=record-photos]');
+  await A.waitForSelector('#photoGrid [data-pending]:not([hidden])');
+  check(true, 'galeria indica "aguardando envio"');
+  await A.keyboard.press('Escape');
+  await ctxA.setOffline(false); fake.setOffline(false);
+  await A.evaluate(() => window.dispatchEvent(new Event('online')));
+  check(await waitFor(() => fake.db.storage.size === 2, 10000), 'conexão voltou: a foto subiu sozinha');
+
+  await A.click('#recordsTable [data-action=record-photos]');
+  await A.waitForSelector('#photoGrid [data-photo-remove]');
+  await acceptNextDialog(A);
+  await A.click('#photoGrid [data-photo-remove]');
+  check(await waitFor(() => fake.db.storage.size === 1), 'foto removida também do servidor');
+  check(eA.length === 0 && eB.length === 0, 'sem erros: ' + [...eA, ...eB].join(' || '));
+  await ctxA.close(); await ctxB.close();
+});
+
+T('erros do app: registrados sem dados pessoais, painel do admin e retenção', async () => {
+  const fake = createFakeSupabase({ v3: true, rpcEnabled: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  fake.addUser('daniel.thomaseto@dhl.com', 'admin123');
+  const ctxA = await newCtx(fake);
+  const A = await ctxA.newPage();
+  const eA = watch(A, 'A');
+  await login(A, 'ana@x.com', 'segredo1');
+  await A.evaluate(() => setTimeout(() => { throw new Error('Falha de teste para ana@x.com com eyJhbGciOi.eyJzdWIiOi.c2lnbmF0dXJl'); }, 0));
+  check(await waitFor(() => fake.db.crono_client_error.length === 1), 'erro enviado ao servidor');
+  const err = fake.db.crono_client_error[0];
+  check(err.message.includes('Falha de teste') && !err.message.includes('ana@x.com') && err.message.includes('<e-mail>') && err.message.includes('<token>'), 'e-mail e token mascarados: ' + err.message);
+  check(err.app_version === 'Beta 11' && err.context && err.context.view === 'dashboard' && !/[?#]/.test(err.url), 'versão, contexto e URL sem tokens');
+  const ctxD = await newCtx(fake);
+  const D = await ctxD.newPage();
+  const eD = watch(D, 'admin');
+  await login(D, 'daniel.thomaseto@dhl.com', 'admin123');
+  await sleep(500);
+  await menu(D, 'open-admin');
+  await D.click('#adminTabErrors');
+  await D.waitForSelector('#adminErrorsList .error-item');
+  check((await D.textContent('#adminErrorsList')).includes('Falha de teste'), 'admin vê o erro no painel');
+  await D.click('#adminTabData');
+  await D.click('[data-action=admin-purge]');
+  await D.waitForFunction(() => document.getElementById('adminPurgeResult').textContent.startsWith('Removidos'));
+  check(true, 'política de retenção aplicada pelo painel');
+  await D.click('#adminTabErrors');
+  await D.waitForSelector('#adminErrorsList .error-item');
+  await acceptNextDialog(D);
+  await D.click('[data-action=admin-clear-errors]');
+  check(await waitFor(() => fake.db.crono_client_error.length === 0), 'admin apaga os erros');
+  const real = eA.filter(e => !e.includes('Falha de teste'));
+  check(real.length === 0 && eD.length === 0, 'sem outros erros: ' + [...real, ...eD].join(' || '));
+  await ctxA.close(); await ctxD.close();
+});
+
+T('relatório A3, salvar no OneDrive e enviar arquivo (Teams/e-mail)', async () => {
+  const fake = createFakeSupabase({ v3: true, azure: true });
+  const ctx = await newCtx(fake);
+  const uploads = [];
+  await ctx.route('https://graph.microsoft.com/**', r => {
+    const q = r.request();
+    uploads.push({ url: q.url(), method: q.method(), auth: q.headers().authorization, body: q.postDataBuffer() });
+    r.fulfill({ status: 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ name: 'Antes A3.xlsx', webUrl: 'https://contoso-my.sharepoint.com/personal/x/Antes%20A3.xlsx' }) });
+  });
+  const page = await ctx.newPage();
+  const errors = watch(page, 'a3');
+  await page.goto(BASE);
+  await page.click('#btnMicrosoft');
+  await page.waitForSelector('body.authed', { timeout: 10000 });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'));
+  await setupStudy(page, 'Depois A3', [['Pegar', 'VA'], ['Andar', 'Transporte']]);
+  await markCycles(page, 2, 2, () => 60);
+  await menu(page, 'back-dashboard');
+  await setupStudy(page, 'Antes A3', [['Pegar', 'VA'], ['Andar', 'Transporte']]);
+  await markCycles(page, 3, 2, () => 90);
+  await page.click('#tabA3');
+  await page.fill('[data-a3=problem]', 'Fila no picking');
+  await page.fill('[data-a3=goal]', 'Ciclo abaixo do takt');
+  await page.click('[data-action=a3-add-action]');
+  await page.fill('#a3Actions tr:last-child [data-f=what]', 'Kanban de caixas');
+  await page.fill('#a3Actions tr:last-child [data-f=who]', 'Ana');
+  await page.fill('#a3Actions tr:last-child [data-f=when]', '2026-11-30');
+  await page.selectOption('#a3Actions tr:last-child [data-f=status]', 'andamento');
+  await page.selectOption('#a3After', { label: 'Depois A3' });
+  await sleep(900);
+  const st = Object.values((await studyData(page)).studies).find(s => s.name === 'Antes A3');
+  check(st.a3 && st.a3.problem === 'Fila no picking' && st.a3.actions.length === 1 && st.a3.actions[0].status === 'andamento' && st.a3.afterStudyId, 'A3 gravado no estudo (textos, plano e estudo "depois")');
+  await page.evaluate(() => { window.__printed = []; window.print = () => window.__printed.push({ a3: document.getElementById('a3Print').innerHTML, cls: document.body.classList.contains('print-a3'), page: !!document.getElementById('a3PageStyle') }); });
+  await page.click('#editorA3 [data-action=print-a3]');
+  await page.waitForFunction(() => window.__printed.length === 1);
+  const pr = await page.evaluate(() => window.__printed[0]);
+  check(pr.cls && pr.page, 'impressão em folha A3 paisagem');
+  check(pr.a3.includes('Fila no picking') && pr.a3.includes('6. Plano de ação') && pr.a3.includes('Kanban de caixas') && pr.a3.includes('Variação') && pr.a3.includes('<svg'), 'A3 com textos, plano, comparação antes × depois e gráficos');
+
+  await menu(page, 'export-onedrive');
+  await page.waitForSelector('#infoModal:not([hidden])');
+  check((await page.textContent('#infoModal')).includes('Salvo no OneDrive'), 'aviso de salvo no OneDrive com link');
+  check(uploads.length === 1 && uploads[0].method === 'PUT' && uploads[0].url.includes('/me/drive/root:/CronoAnalise/Antes%20A3.xlsx:/content'), 'enviado para a pasta CronoAnalise do OneDrive');
+  check(/^Bearer graph-/.test(uploads[0].auth) && uploads[0].body[0] === 0x50, 'com o token da Microsoft e o arquivo .xlsx');
+  await page.keyboard.press('Escape');
+  // autorização expirada: volta ao login da Microsoft pedindo o OneDrive e envia na volta
+  await page.evaluate(() => sessionStorage.removeItem('cronoanalise:graphToken'));
+  await acceptNextDialog(page);
+  await menu(page, 'export-onedrive');
+  await page.waitForFunction(() => document.body.classList.contains('authed') && !document.body.classList.contains('booting') && !location.hash, null, { timeout: 10000 });
+  check(await waitFor(() => uploads.length === 2, 10000), 'após entrar de novo com a Microsoft, o envio continua sozinho');
+  check(/Files\.ReadWrite/.test(fake.authorizeLog[fake.authorizeLog.length - 1].scopes), 'pede permissão do OneDrive só nessa hora');
+  await page.waitForSelector('#infoModal:not([hidden])');
+  await page.keyboard.press('Escape');
+
+  await page.evaluate(() => {
+    window.__shared = null;
+    Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
+    Object.defineProperty(navigator, 'share', { value: async d => { window.__shared = { name: d.files[0].name, type: d.files[0].type, size: d.files[0].size }; }, configurable: true });
+  });
+  await menu(page, 'share-file');
+  await page.waitForFunction(() => window.__shared);
+  const shared = await page.evaluate(() => window.__shared);
+  check(shared.name === 'Antes A3.xlsx' && shared.size > 1000, 'planilha enviada pela folha de compartilhamento do celular');
+  const dl = page.waitForEvent('download');
+  await menu(page, 'export-xlsx');
+  check(xlsxHas(await (await dl).path(), 'name="A3"'), 'Excel com a aba A3');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('estudo grande (5.000 registros): tabela virtual e marcação rápida', async () => {
+  const fake = createFakeSupabase();
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'grande');
+  await login(page, 'ana@x.com', 'segredo1');
+  await setupStudy(page, 'Grande', [['A', 'VA'], ['B', 'NVA'], ['C', 'Espera'], ['D', 'VA'], ['E', 'Transporte']]);
+  await page.click('#btnStart'); await sleep(100); await page.click('.stage-wrap:nth-child(1) .stage');
+  await sleep(300);
+  await menu(page, 'back-dashboard');
+  await page.evaluate(async () => {
+    const storage = await import('/js/storage.js');
+    const s = storage.listStudies()[0];
+    const st = storage.getStudy(s.id);
+    const base = Date.now() - 5000 * 1000;
+    for (let i = 0; i < 5000; i++) {
+      const stg = st.stages[i % 5];
+      st.records.push({ id: 'big' + i, cycle: Math.floor(i / 5) + 2, stageId: stg.id, stageName: stg.name, type: stg.type, time: 1 + (i % 7) * 0.3, qty: 1, ts: new Date(base + i * 1000).toISOString() });
+    }
+    st.currentCycle = 1002;
+    storage.putStudy(st);
+    await storage.flushWrites();
+  });
+  const t0 = Date.now();
+  await page.click('.study-card [data-action=open-study]');
+  await page.waitForSelector('#recordsWrap.virtual');
+  const openMs = Date.now() - t0;
+  check(openMs < 4000, 'abre o estudo grande em ' + openMs + ' ms');
+  const rows = await page.locator('#recordsTable tr[data-id]').count();
+  check(rows > 10 && rows < 200, 'só as linhas visíveis são desenhadas: ' + rows + ' de 5001');
+  check(await page.isVisible('#recordsHint'), 'aviso de tabela virtual');
+  await page.evaluate(() => { const w = document.getElementById('recordsWrap'); w.scrollTop = w.scrollHeight / 2; });
+  await sleep(300);
+  const cyc = Number(await page.textContent('#recordsTable tr[data-id] td:first-child'));
+  check(cyc > 300 && cyc < 700, 'rolagem desenha o meio da tabela (ciclo ' + cyc + ')');
+  await page.click('#btnStart').catch(() => {});
+  await sleep(200);
+  const ms = await page.evaluate(() => {
+    const t = performance.now();
+    document.querySelector('.stage-wrap:nth-child(2) .stage').click();
+    return performance.now() - t;
+  });
+  check(ms < 400, 'marcar uma etapa leva ' + Math.round(ms) + ' ms');
+  await menu(page, 'toggle-field');
+  await sleep(200);
+  const msField = await page.evaluate(() => {
+    const t = performance.now();
+    document.querySelector('.stage-wrap:nth-child(3) .stage').click();
+    return performance.now() - t;
+  });
+  check(msField < 200, 'no Modo Campo, marcar leva ' + Math.round(msField) + ' ms');
+  await menu(page, 'toggle-field');
+  await sleep(300);
+  check(await page.locator('#recordsTable tr[data-id]').count() > 10, 'ao sair do Modo Campo, a tabela é redesenhada');
+  const n = await page.evaluate(async () => (await import('/js/storage.js')).listStudies()[0].records.length);
+  check(n === 5003, 'as marcações foram gravadas: ' + n);
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
+});
+
+T('banco sem a migração 003 (produção hoje): tudo funciona, sem erros nem tentativas repetidas', async () => {
+  const fake = createFakeSupabase({ v2: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  const ctx = await newCtx(fake);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'sem003');
+  await login(page, 'ana@x.com', 'segredo1');
+  await setupStudy(page, 'Sem 003', [['E1', 'VA']]);
+  await page.click('#btnStart'); await sleep(150); await page.click('.stage');
+  await sleep(1500);
+  const fc = page.waitForEvent('filechooser');
+  await page.click('#btnPhoto');
+  await (await fc).setFiles({ name: 'f.png', mimeType: 'image/png', buffer: makePng(64, 48) });
+  await page.waitForSelector('#recordsTable [data-action=record-photos]');
+  for (let i = 0; i < 3; i++) { await menu(page, 'manual-save'); await sleep(700); }
+  const storageCalls = fake.log.filter(l => l.path.startsWith('/storage/')).length;
+  check(storageCalls <= 2, 'sem o bucket, a foto fica no aparelho e o envio não é repetido a cada sincronização (' + storageCalls + ' tentativa(s))');
+  const roleCalls = fake.log.filter(l => l.path.includes('crono_my_study_roles')).length;
+  check(roleCalls >= 1, 'papéis lidos pelo fallback (sem a função da 003)');
+  await menu(page, 'open-teams');
+  await page.waitForSelector('#teamsUnavailable:not([hidden])');
+  check(true, 'tela de times explica que falta a migração 003');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => setTimeout(() => { throw new Error('erro sem tabela'); }, 0));
+  await sleep(800);
+  const errCalls = fake.log.filter(l => l.path.includes('crono_client_error')).length;
+  check(errCalls <= 1, 'registro de erros desiste sem a tabela (' + errCalls + ' tentativa)');
+  check(!(await page.isVisible('#liveBadge')), 'sem tempo real: sem selo "ao vivo" (a busca periódica cobre)');
+  const real = errors.filter(e => !e.includes('erro sem tabela'));
+  check(real.length === 0, 'sem erros: ' + real.join(' || '));
+  await ctx.close();
+});
+
+T('acessibilidade (axe-core): telas principais sem violações graves', async () => {
+  let axePath;
+  try { axePath = createRequire(import.meta.url).resolve('axe-core/axe.min.js'); } catch (e) {
+    console.log('  (axe-core não instalado: npm i --no-save axe-core — cenário pulado)');
+    return;
+  }
+  const fake = createFakeSupabase({ v3: true });
+  fake.addUser('ana@x.com', 'segredo1');
+  // bypassCSP só para injetar o axe; o app continua com a CSP nos outros cenários
+  const ctx = await browser.newContext({ serviceWorkers: 'block', bypassCSP: true, viewport: { width: 1200, height: 900 } });
+  await fake.attach(ctx);
+  const page = await ctx.newPage();
+  const errors = watch(page, 'a11y');
+  const scan = async name => {
+    if (!(await page.evaluate(() => !!window.axe))) await page.addScriptTag({ path: axePath });
+    const res = await page.evaluate(async () => {
+      const r = await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, resultTypes: ['violations'] });
+      return r.violations.map(v => ({ id: v.id, impact: v.impact, n: v.nodes.length, ex: v.nodes.slice(0, 3).map(n => n.target.join(' ') + ' → ' + String(n.failureSummary || '').split('\n').slice(1, 2).join('')) }));
+    });
+    const bad = res.filter(v => v.impact === 'serious' || v.impact === 'critical');
+    const minor = res.filter(v => !bad.includes(v)).map(v => v.id + '×' + v.n);
+    check(bad.length === 0, name + (bad.length ? ': ' + JSON.stringify(bad, null, 1) : ' sem violações graves') + (minor.length ? ' (menores: ' + minor.join(', ') + ')' : ''));
+  };
+  // espera as transições de cor terminarem (senão o axe mede a cor no meio da animação)
+  const dark = async on => { await page.evaluate(v => document.documentElement.classList.toggle('dark-theme', v), on); await sleep(400); };
+
+  await page.goto(BASE);
+  await page.waitForSelector('#authEmail', { state: 'visible' });
+  await scan('login');
+  await dark(true); await scan('login (tema escuro)'); await dark(false);
+  await login(page, 'ana@x.com', 'segredo1');
+  await scan('dashboard');
+  await setupStudy(page, 'Acessível', [['Pegar', 'VA'], ['Andar', 'Transporte'], ['Conferir', 'NVA']]);
+  await page.click('.stage-wrap:nth-child(1) .stage-edit');
+  await page.fill('#editStageStation', 'P1');
+  await page.click('#whBox summary');
+  await scan('modal de etapa (posto e Westinghouse)');
+  await page.click('#stageEditForm button[type=submit]');
+  await markCycles(page, 4, 3, () => 60);
+  await page.click('#btnPause');
+  await sleep(300);
+  await scan('editor de cronoanálise (indicadores, gráficos, balanceamento, registros)');
+  await dark(true); await scan('editor (tema escuro)'); await dark(false);
+  await page.click('#tabA3');
+  await sleep(400);
+  await scan('aba A3');
+  await page.click('#tabCrono');
+  await menu(page, 'open-settings');
+  await scan('configurações');
+  await page.keyboard.press('Escape');
+  await menu(page, 'open-teams');
+  await page.waitForSelector('#teamForm:not([hidden])');
+  await scan('times');
+  await page.keyboard.press('Escape');
+  await menu(page, 'new-sampling');
+  for (const i of [1, 2, 1]) { await page.click(`#samplingCats .stage:nth-child(${i})`); await sleep(60); }
+  await scan('amostragem do trabalho');
+  await dark(true); await scan('amostragem (tema escuro)'); await dark(false);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await menu(page, 'back-dashboard');
+  await scan('dashboard no celular');
+  check(errors.length === 0, 'sem erros: ' + errors.join(' || '));
+  await ctx.close();
 });
 
 /* ================================================================ */

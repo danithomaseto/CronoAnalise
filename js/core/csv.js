@@ -49,14 +49,14 @@ export function buildCSV(study, stats, exportedAt = new Date()) {
   lines.push('Resumo por Etapa');
   const head = ['Etapa', 'Tipo', 'Ocorrências', 'Tempo Total(s)', 'Tempo Médio(s)', 'Tempo Mín(s)', 'Tempo Máx(s)',
     'Desvio Padrão(s)', 'CV(%)', 'Ciclos Necessários', 'Qtd Total', 'Produtividade (un/h)'];
-  if (stats.hasStdParams) head.push('Tempo Normal(s)', 'Tempo Padrão(s)');
+  if (stats.hasStdParams) head.push('Ritmo(%)', 'Tempo Normal(s)', 'Tempo Padrão(s)');
   lines.push(row(...head));
   stats.summary.forEach(s => {
     const cells = [
       t(s.name), t(s.type), s.count, toBR(s.total), toBR(s.avg), toBR(s.min), toBR(s.max),
       toBR(s.sd), toBR(s.cv, 1), s.nRequired === null ? '' : s.nRequired, toBR(s.qty, 0), toBR(s.productivity)
     ];
-    if (stats.hasStdParams) cells.push(toBR(s.normal), toBR(s.standard));
+    if (stats.hasStdParams) cells.push(toBR(s.rating, 1), toBR(s.normal), toBR(s.standard));
     lines.push(row(...cells));
   });
   lines.push('');
@@ -77,9 +77,51 @@ export function buildCSV(study, stats, exportedAt = new Date()) {
     lines.push(row(t('Interrupções (qtd)'), stats.interruptionCount));
     lines.push(row(t('Interrupções (s)'), toBR(stats.interruptionTime)));
   }
+  if (stats.trend && stats.trend.significant) {
+    lines.push(row(t('Tendência do ciclo (s/ciclo)'), toBR(stats.trend.slope)));
+    if (stats.trend.learningRate) lines.push(row(t('Curva de aprendizado (%)'), toBR(stats.trend.learningRate, 1)));
+  }
   lines.push(row(t('Nível de confiança (%)'), stats.confidence));
   lines.push(row(t('Erro relativo (%)'), stats.errorPct));
 
+  const notes = String(study.notes || '').trim();
+  if (notes) {
+    lines.push('');
+    lines.push('Observações / Oportunidades Observadas');
+    notes.split(/\r?\n/).forEach(l => lines.push(t(l)));
+  }
+  return lines.join('\r\n');
+}
+
+/* Amostragem do trabalho: cabeçalho, resultado por categoria e observações. */
+export function buildSamplingCSV(study, st, exportedAt = new Date()) {
+  const t = textCell;
+  const lines = [];
+  lines.push(row(t('Estudo'), t(study.name)));
+  lines.push(row(t('Tipo'), t('Amostragem do trabalho')));
+  lines.push(row(t(FIELD_LABELS.process), t(study.process)));
+  lines.push(row(t(FIELD_LABELS.operator), t(study.operator)));
+  lines.push(row(t(FIELD_LABELS.observer), t(study.observer)));
+  lines.push(row(t('Data da exportação'), t(exportedAt.toLocaleString('pt-BR'))));
+  lines.push('');
+  lines.push(row(t('Observações'), st.n));
+  lines.push(row(t('% produtivo'), toBR(st.productivePct, 1)));
+  lines.push(row(t('Intervalo de confiança (%)'), t(toBR(st.productiveLo, 1) + ' a ' + toBR(st.productiveHi, 1))));
+  lines.push(row(t('Observações necessárias'), st.nRequired));
+  lines.push(row(t('Nível de confiança (%)'), st.confidence));
+  lines.push(row(t('Erro aceitável (p.p.)'), st.errorPts));
+  lines.push('');
+  lines.push(row('Categoria', 'Produtiva', 'Observações', '%', 'IC mín (%)', 'IC máx (%)', 'Minutos estimados'));
+  st.categories.forEach(c => lines.push(row(
+    t(c.name), c.productive ? 'Sim' : 'Não', c.count, toBR(c.p * 100, 1), toBR(c.lo * 100, 1), toBR(c.hi * 100, 1),
+    c.minutes === null ? '' : toBR(c.minutes, 1)
+  )));
+  lines.push('');
+  lines.push(row('Data', 'Horário', 'Categoria', 'Produtiva', 'Observação'));
+  (study.observations || []).forEach(o => {
+    const d = new Date(o.ts);
+    lines.push(row(t(isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR')), t(fmtTimeOfDay(o.ts)), t(o.catName), o.productive ? 'Sim' : 'Não', t(o.note || '')));
+  });
   const notes = String(study.notes || '').trim();
   if (notes) {
     lines.push('');

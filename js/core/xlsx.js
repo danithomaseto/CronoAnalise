@@ -5,6 +5,7 @@
    Célula: null | string | number | { v, s } com s em STYLES. */
 
 import { createZip } from './zip.js';
+import { BRAND, CREDIT } from '../config.js';
 
 export const STYLES = { normal: 0, bold: 1, num2: 2, int: 3, num1: 4, head: 5, wrap: 6, title: 7 };
 
@@ -119,7 +120,8 @@ export function createWorkbook(sheets, now = new Date()) {
   files.push({
     name: 'docProps/core.xml',
     data: XML_HEAD + '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
-      '<dc:creator>CronoAnálise</dc:creator>' +
+      '<dc:creator>' + xmlEscape(BRAND.title) + '</dc:creator>' +
+      '<dc:description>' + xmlEscape(BRAND.title + ' — ' + CREDIT) + '</dc:description>' +
       `<dcterms:created xsi:type="dcterms:W3CDTF">${now.toISOString().replace(/\.\d{3}Z$/, 'Z')}</dcterms:created>` +
       '</cp:coreProperties>'
   });
