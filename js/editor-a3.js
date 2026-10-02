@@ -8,7 +8,7 @@ import { samplingStats } from './core/sampling.js';
 import { yamazumiSVG, paretoSVG, samplingSVG, legendHTML, typesPresent } from './core/charts.js';
 import { A3_TEXT_FIELDS, normalizeA3 } from './core/model.js';
 import { toBR, escapeHtml, uid } from './core/format.js';
-import { FIELD_LABELS } from './config.js';
+import { FIELD_LABELS, BRAND, CREDIT } from './config.js';
 import { $ } from './ui.js';
 import { S, persist, touchField, getStats } from './editor.js';
 
@@ -158,7 +158,8 @@ export function buildSheet() {
     '<div class="a3-head"><div><h1>A3 — ' + escapeHtml(s.name) + '</h1>' +
       '<div style="font-size:9pt">' + [s.process && FIELD_LABELS.process + ': ' + escapeHtml(s.process), s.operator && FIELD_LABELS.operator + ': ' + escapeHtml(s.operator), s.observer && FIELD_LABELS.observer + ': ' + escapeHtml(s.observer)].filter(Boolean).join(' · ') + '</div></div>' +
       '<div class="meta">' + (sampling ? 'Amostragem do trabalho' : 'Cronoanálise') + '<br>Gerado em ' + escapeHtml(new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })) +
-      (actions.length ? '<br>Plano: ' + done + '/' + actions.length + ' ações concluídas' : '') + '</div></div>' +
+      (actions.length ? '<br>Plano: ' + done + '/' + actions.length + ' ações concluídas' : '') +
+      '<br>' + escapeHtml(BRAND.title) + ' · ' + escapeHtml(CREDIT) + '</div></div>' +
     '<div class="a3-cols"><div>' +
       box('1. Problema / contexto', text(a3.problem)) +
       box('2. Situação atual', current + (a3.current ? text(a3.current) : '')) +

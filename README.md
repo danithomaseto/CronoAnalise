@@ -8,6 +8,13 @@ Ferramenta web de **cronoanálise** (*time & motion study*) e **amostragem do tr
 
 🔗 **Aplicativo:** [crono-analise.vercel.app](https://crono-analise.vercel.app)
 
+## Documentação
+
+| Documento | Para quem |
+|---|---|
+| 📘 [**Guia de uso passo a passo**](docs/GUIA-DE-USO.md) | Quem usa a ferramenta: login, cronometragem, Modo Campo, amostragem, balanceamento, A3, exportações, equipe e configurações, com imagens de cada tela |
+| 🛠️ [**Como funciona e como foi feito**](docs/FUNCIONAMENTO.md) | Quem mantém ou evolui: arquitetura, modelo de dados, mesclagem, fórmulas, banco de dados e RLS, segurança, testes e a história de cada etapa |
+
 ## O que é
 
 O CronoAnálise substitui a combinação cronômetro de celular + planilha por um fluxo único: você define as etapas do processo, cronometra cada ciclo tocando na etapa correspondente, e a ferramenta calcula os indicadores na hora — tempo total, produtividade, % de tempo que agrega valor, variabilidade, tamanho de amostra, takt time, balanceamento da linha e tendência de aprendizado — além de manter um histórico organizado por estudo, compartilhável com pessoas e times.
@@ -118,6 +125,7 @@ npx serve .            # ou: npm start
 | `npm run test:sql` | Aplica `schema.sql`, 002 e 003 num **Postgres real** e testa RLS, times, fotos, MFA, retenção, gatilhos e funções | `npm i --no-save embedded-postgres pg` |
 | `npm run test:e2e` | 31 cenários no navegador com o `supabase-js` real contra um Supabase simulado (HTTP, Realtime, Storage, MFA, login Microsoft e OneDrive), incluindo **acessibilidade com axe-core** | `npm i --no-save playwright@1.56.1 axe-core && npx playwright install chromium` |
 | `npm run test:visual` | **Regressão visual**: compara screenshots das telas com as referências em `tests/visual/baseline/` (`-- --update` aceita o visual novo) | `npm i --no-save playwright@1.56.1 pixelmatch pngjs` |
+| `npm run docs:screenshots` | Gera as imagens do guia de uso (`docs/img/`) com dados de demonstração | `npm i --no-save playwright@1.56.1` |
 | `npm run test:staging` | Fluxo completo contra um **Supabase de homologação** (pulado sem credenciais) | Playwright + variáveis `STAGING_*` |
 
 > Instale as dependências de teste **numa única linha** (`npm i --no-save` remove o que não estiver na mesma chamada).
@@ -152,10 +160,13 @@ js/core/                Lógica pura, testável no Node
   csv.js · xlsx.js · zip.js · report.js   Exportações
 sw.js                   Service worker (offline)
 supabase/               schema.sql e migrations/ (002, 003)
-tests/                  node --test, e2e/, sql/, visual/, staging/
+tests/                  node --test, e2e/, sql/, visual/, staging/, docs/ (imagens do guia)
+docs/                   Guia de uso, documento técnico e imagens (docs/img)
 vendor/                 supabase-js versionado
 ```
 
 ## Autor
 
-Desenvolvido por Daniel Thomaseto.
+**CronoAnalise System** — desenvolvido por **Daniel Thomaseto**.
+
+A assinatura do autor aparece na tela de login, no rodapé do app, nas Configurações, nos relatórios impressos (PDF e A3) e nas propriedades dos arquivos Excel (configurável em `BRAND.author`, em `js/config.js`).

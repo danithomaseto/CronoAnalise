@@ -30,14 +30,19 @@ export const FIELD_LABELS = {
    - logo: caminho de uma imagem (ex.: 'icons/logo-empresa.svg') para mostrar no
      lugar da marca padrão do app — use o arquivo oficial do portal de marca.
    - microsoftLogin: botão de entrar com a conta Microsoft da empresa (Entra ID).
-     Precisa do provedor "Azure" ativado no Supabase (ver README). */
+     Precisa do provedor "Azure" ativado no Supabase (ver README).
+   - author: autor da ferramenta — assinatura no login, no rodapé do app, nos
+     relatórios (PDF e A3) e nas propriedades do Excel. */
 export const BRAND = {
   title: 'CronoAnalise System',
   logo: null,
   microsoftLogin: true,
   microsoftLabel: 'Acesso com e-mail DHL',
-  footer: '© 2026 CronoAnalise System'
+  footer: '© 2026 CronoAnalise System',
+  author: 'Daniel Thomaseto'
 };
+
+export const CREDIT = 'Desenvolvido por ' + BRAND.author;
 
 /* Fotos dos registros (Supabase Storage, criado pela migração 003). */
 export const PHOTO_BUCKET = 'crono-photos';

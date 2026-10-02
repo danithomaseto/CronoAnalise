@@ -2,6 +2,7 @@
   "name": "cronoanalise",
   "private": true,
   "type": "module",
+  "author": "Daniel Thomaseto",
   "description": "Ferramenta web de cronoanálise (time & motion study) e amostragem do trabalho",
   "scripts": {
     "start": "npx --yes serve -l 5173 .",
@@ -10,6 +11,7 @@
     "test:sql": "node tests/sql/validate.mjs",
     "lint": "eslint . && tsc -p jsconfig.json",
     "test:staging": "node tests/staging/smoke.mjs",
-    "test:visual": "node tests/visual/run.mjs"
+    "test:visual": "node tests/visual/run.mjs",
+    "docs:screenshots": "node tests/docs/screenshots.mjs"
   }
 }

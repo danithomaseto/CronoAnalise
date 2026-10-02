@@ -338,6 +338,7 @@ body.booting .boot-screen{display:flex}
 .login-links.small .link-plain{font-weight:400}
 .login-footer{margin-top:22px;font-size:12px;font-weight:600;color:var(--ink);text-align:center}
 .login-footer .link-plain{font-size:12px;text-decoration:underline}
+.login-credit{margin:6px 0 0;font-size:11px;letter-spacing:.04em;color:var(--muted);text-align:center}
 .login-hint{font-size:13px;color:var(--ink-soft);text-align:center;margin:0 0 6px;max-width:440px}
 #mfaForm .login-input{width:min(100%,280px)}
 #mfaForm .login-input input{text-align:center;font-family:var(--mono);font-size:24px;letter-spacing:.3em}
@@ -349,7 +350,9 @@ body.booting .boot-screen{display:flex}
 .login-form .auth-error:empty,.login-form .auth-msg:empty{min-height:0}
 .dark-theme .auth-msg{color:#6fcf8f}
 body.authed #authOverlay{display:none}
-body:not(.authed) .topbar,body:not(.authed) #dashboardView,body:not(.authed) #editorView{display:none}
+body:not(.authed) .topbar,body:not(.authed) #dashboardView,body:not(.authed) #editorView,body:not(.authed) .app-credit{display:none}
+/* Assinatura do autor (rodapé do app e do relatório impresso) */
+.app-credit{max-width:1080px;margin:4px auto 0;padding:6px 16px calc(18px + env(safe-area-inset-bottom));text-align:center;font-size:11px;letter-spacing:.04em;color:var(--muted)}
 
 /* ---------- Navegação Dashboard / Editor ---------- */
 body.view-editor .view-dashboard-only{display:none!important}
@@ -579,6 +582,7 @@ body:not(.kind-sampling) [data-kind="sampling"]{display:none!important}
   .print-header{display:block;margin:0 0 8px}
   .print-header h1{margin:0;font-size:22px}
   .print-header p{margin:2px 0 0;color:#555;font-size:12px}
+  .app-credit{color:#555;padding:8px 0 0;margin-top:8px;border-top:1px solid #ccc}
   .chart-card{break-inside:avoid}
   .chart-tip{display:none!important}
   .stage-interruption{display:none}

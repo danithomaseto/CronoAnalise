@@ -1,6 +1,6 @@
 /* Ponto de entrada: autenticação, navegação, ações da interface e atalhos. */
 
-import { APP_VERSION, BRAND } from './config.js';
+import { APP_VERSION, BRAND, CREDIT } from './config.js';
 import * as storage from './storage.js';
 import {
   sb, createSync, logActivity, checkIsAdmin, adminStats, deleteAccount, insertClientErrors,
@@ -167,6 +167,8 @@ function applyBrand() {
   $('msLabel').textContent = BRAND.microsoftLabel;
   $('btnMicrosoft').hidden = !BRAND.microsoftLogin;
   $('loginFooter').textContent = BRAND.footer;
+  $('loginCredit').textContent = CREDIT;
+  $('appCredit').textContent = CREDIT;
   if (BRAND.logo) {
     const img = document.createElement('img');
     img.src = BRAND.logo;
@@ -459,7 +461,7 @@ async function openSettings() {
     (storage.getSyncMeta().mode === 'rows' ? 'um estudo por linha' : 'formato atual') +
     (storage.getSyncMeta().teams ? ' + times' : '') +
     ' · armazenamento: ' + (storage.getBackend() === 'idb' ? 'IndexedDB' : 'localStorage') +
-    (sync.isLive() ? ' · tempo real ativo' : '');
+    (sync.isLive() ? ' · tempo real ativo' : '') + ' · ' + CREDIT;
   openModal('settingsModal');
   $('mfaStatus').textContent = '…';
   $('btnMfaToggle').disabled = true;
@@ -853,6 +855,7 @@ function onKeydown(e) {
 
 /* ---------- Inicialização ---------- */
 function boot() {
+  console.info(BRAND.title + ' ' + APP_VERSION + ' — ' + CREDIT);
   initMonitor({
     context: () => ({
       view: isEditorView() ? 'editor' : 'dashboard',
